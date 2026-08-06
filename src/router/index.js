@@ -1,4 +1,7 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import {
+  createRouter,
+  createWebHashHistory,
+} from 'vue-router'
 
 import MealLayout from '@/views/meal/MealLayout.vue'
 
@@ -19,7 +22,8 @@ import OppaCommuteView from '@/views/commute/OppaCommuteView.vue'
 import TennisView from '@/views/tennis/TennisView.vue'
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHashHistory(
+  import.meta.env.BASE_URL,),
 
   routes: [
     {
