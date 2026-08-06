@@ -31,19 +31,21 @@ const shiftLocations = ['pyeongtaek', 'cheongju', 'icheon']
 const dayNames = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']
 
 function getMonday(date) {
-  const target = new Date(date)
-  target.setHours(0, 0, 0, 0)
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
 
   const day = target.getDay()
   const difference = day === 0 ? -6 : 1 - day
 
   target.setDate(target.getDate() + difference)
 
+  target.setHours(0, 0, 0, 0)
+
   return target
 }
 
 function addDays(date, amount) {
   const result = new Date(date)
+
   result.setDate(result.getDate() + amount)
 
   return result
@@ -106,7 +108,7 @@ function getScheduleSummary(schedule) {
   const shiftLabel = getShiftLabel(schedule.work_shift)
 
   if (needsShift(schedule.work_location) && shiftLabel) {
-    return `${locationLabel} ${shiftLabel}`
+    return `${locationLabel} ` + `${shiftLabel}`
   }
 
   if (needsShift(schedule.work_location)) {
@@ -154,8 +156,11 @@ const weekDays = computed(() => {
       name,
       date,
       dateKey,
+
       shortDate: formatShortDate(date),
+
       isToday: isSameDate(date, new Date()),
+
       schedule: schedules.value[dateKey] || {
         work_location: null,
         work_shift: null,
@@ -166,6 +171,7 @@ const weekDays = computed(() => {
 
 const weekLabel = computed(() => {
   const start = currentWeekStart.value
+
   const end = addDays(start, 6)
 
   return (
@@ -179,6 +185,7 @@ const weekLabel = computed(() => {
 
 async function loadSchedules() {
   loading.value = true
+
   setStatus('근무 일정을 불러오는 중...')
 
   const startDate = formatDateKey(currentWeekStart.value)
@@ -207,12 +214,15 @@ async function loadSchedules() {
   for (const row of data || []) {
     nextSchedules[row.schedule_date] = {
       id: row.id,
+
       work_location: row.work_location,
+
       work_shift: row.work_shift,
     }
   }
 
   schedules.value = nextSchedules
+
   setStatus('공유 일정과 동기화됨')
 }
 
@@ -237,11 +247,16 @@ async function saveSchedule(dateKey, changes) {
 
   const row = {
     person: 'oppa',
+
     schedule_date: dateKey,
+
     commute_start: null,
     commute_end: null,
+
     work_location: nextSchedule.work_location,
+
     work_shift: nextSchedule.work_shift,
+
     updated_at: new Date().toISOString(),
   }
 
@@ -265,14 +280,17 @@ async function saveSchedule(dateKey, changes) {
 
   schedules.value = {
     ...schedules.value,
+
     [dateKey]: {
       id: data.id,
+
       work_location: data.work_location,
+
       work_shift: data.work_shift,
     },
   }
 
-  setStatus(`${dateKey} ${getScheduleSummary(data)} 일정을 저장했습니다.`)
+  setStatus(`${dateKey} ` + `${getScheduleSummary(data)} ` + `일정을 저장했습니다.`)
 }
 
 async function selectLocation(day, location) {
@@ -410,17 +428,17 @@ onMounted(loadSchedules)
           <p v-if="!day.schedule.work_shift" class="shift-guide">주간 또는 야간을 선택하세요.</p>
         </section>
 
-        <p v-else-if="day.schedule.work_location === 'office'" class="summary office">
+        <p v-else-if="day.schedule.work_location === 'office'" class="summary-box office">
           사무실 근무
         </p>
 
-        <p v-else-if="day.schedule.work_location === 'overseas'" class="summary overseas">
+        <p v-else-if="day.schedule.work_location === 'overseas'" class="summary-box overseas">
           해외출장
         </p>
 
-        <p v-else-if="day.schedule.work_location === 'off'" class="summary off">쉬는 날</p>
+        <p v-else-if="day.schedule.work_location === 'off'" class="summary-box off">쉬는 날</p>
 
-        <p v-else class="summary empty">일정을 선택하세요.</p>
+        <p v-else class="summary-box empty">일정을 선택하세요.</p>
       </article>
     </div>
   </section>
@@ -431,16 +449,25 @@ onMounted(loadSchedules)
   --title: #493957;
   --text: #443b49;
   --muted: #7d7182;
+
   --pink: #f1d8e7;
   --pink-strong: #d895b9;
+  --pink-light: #fff6fb;
+
   --blue: #dbe7f3;
   --blue-strong: #7891aa;
+
   --green: #dcebe5;
+
   --purple: #eee2f5;
   --purple-strong: #684c78;
+
   --night: #e4def2;
   --night-strong: #63547e;
-  --line: rgb(73 57 87 / 12%);
+
+  --line: #e7dbea;
+
+  --shadow: 0 7px 20px rgb(73 57 87 / 9%);
 }
 
 .section-header {
@@ -449,12 +476,14 @@ onMounted(loadSchedules)
 
 .section-header h3 {
   margin: 0;
+
   color: var(--title);
   font-size: 22px;
 }
 
 .section-header p {
   margin: 5px 0 0;
+
   color: var(--muted);
   font-size: 13px;
 }
@@ -462,24 +491,39 @@ onMounted(loadSchedules)
 .week-controller {
   display: grid;
   grid-template-columns: auto 1fr auto;
+
   align-items: center;
   gap: 10px;
+
   margin-bottom: 12px;
+  padding: 10px;
+
+  border: 1px solid var(--line);
+  border-radius: 16px;
+
+  background: white;
+
+  box-shadow: 0 3px 12px rgb(73 57 87 / 6%);
 }
 
 .week-controller > button,
 .today-button {
   border: 1px solid var(--line);
   border-radius: 10px;
+
   padding: 9px 12px;
-  background: rgb(255 255 255 / 68%);
+
+  background: #f6eff9;
   color: var(--text);
+
+  font-weight: 700;
+
   cursor: pointer;
 }
 
 .week-controller > button:hover,
 .today-button:hover {
-  background: rgb(255 255 255 / 90%);
+  background: var(--pink);
 }
 
 .week-title {
@@ -488,19 +532,22 @@ onMounted(loadSchedules)
 
 .week-title strong {
   display: block;
+
   color: var(--title);
   font-size: 14px;
 }
 
 .today-button {
   margin-top: 6px;
-  padding: 5px 10px;
+  padding: 5px 11px;
+
   font-size: 11px;
 }
 
 .sync-status {
   min-height: 18px;
-  margin: 0 0 10px;
+  margin: 0 0 12px;
+
   color: var(--muted);
   font-size: 11px;
   text-align: center;
@@ -512,35 +559,61 @@ onMounted(loadSchedules)
 
 .loading {
   padding: 50px 0;
+
   color: var(--muted);
   text-align: center;
 }
 
 .schedule-grid {
   display: grid;
+
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+
+  gap: 14px;
 }
 
 .day-card {
-  min-height: 270px;
-  padding: 15px;
-  border: 1px solid rgb(255 255 255 / 75%);
-  border-radius: 16px;
-  background: rgb(255 255 255 / 58%);
-  box-shadow: 0 4px 12px rgb(0 0 0 / 5%);
+  min-height: 255px;
+
+  padding: 17px;
+
+  border: 1px solid var(--line);
+  border-radius: 20px;
+
+  background: white;
+
+  box-shadow: var(--shadow);
+
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.day-card:hover {
+  transform: translateY(-2px);
+
+  box-shadow: 0 10px 25px rgb(73 57 87 / 12%);
 }
 
 .day-card.today {
   border: 2px solid var(--pink-strong);
-  background: rgb(255 244 250 / 86%);
+
+  background: var(--pink-light);
+
+  box-shadow: 0 9px 24px rgb(216 149 185 / 20%);
 }
 
 .day-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+
   gap: 8px;
+
+  padding-bottom: 12px;
+
+  border-bottom: 1px solid rgb(73 57 87 / 8%);
 }
 
 .day-title-area {
@@ -552,31 +625,39 @@ onMounted(loadSchedules)
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+
+  gap: 7px;
 }
 
 .day-title-line strong {
   color: var(--title);
+  font-size: 16px;
 }
 
 .day-date {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .schedule-badge {
   display: inline-flex;
   align-items: center;
-  min-height: 22px;
+
+  min-height: 23px;
+
   border-radius: 999px;
-  padding: 4px 9px;
+
+  padding: 4px 10px;
+
   font-size: 10px;
   font-weight: 800;
+
   white-space: nowrap;
 }
 
 .schedule-badge.unset {
-  background: rgb(125 113 130 / 9%);
+  background: rgb(125 113 130 / 10%);
+
   color: var(--muted);
 }
 
@@ -607,70 +688,96 @@ onMounted(loadSchedules)
 
 .today-label {
   flex: none;
+
   border-radius: 999px;
-  padding: 4px 8px;
+
+  padding: 4px 9px;
+
   background: var(--pink);
   color: var(--title);
-  font-size: 9px;
-  font-weight: 700;
+
+  font-size: 10px;
+  font-weight: 800;
 }
 
 .location-section,
 .shift-section {
-  margin-top: 14px;
+  margin-top: 15px;
 }
 
 .location-section h4,
 .shift-section h4 {
-  margin: 0 0 8px;
+  margin: 0 0 9px;
+
   color: var(--muted);
   font-size: 11px;
 }
 
 .location-grid {
   display: grid;
+
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+
+  gap: 7px;
 }
 
 .location-grid button,
 .shift-grid button {
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 9px 5px;
-  background: rgb(255 255 255 / 70%);
+  border-radius: 10px;
+
+  padding: 10px 5px;
+
+  background: white;
   color: var(--text);
+
   font-size: 11px;
+  font-weight: 700;
+
   cursor: pointer;
+
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .location-grid button:hover:not(:disabled),
 .shift-grid button:hover:not(:disabled) {
-  background: rgb(255 255 255 / 94%);
+  transform: translateY(-1px);
+
+  background: #f7f2f9;
 }
 
 .location-grid button.selected {
   border-color: var(--blue-strong);
+
   background: var(--blue);
   color: #455f78;
+
   font-weight: 800;
 }
 
 .shift-section {
-  border-top: 1px solid var(--line);
-  padding-top: 13px;
+  border-top: 1px solid rgb(73 57 87 / 8%);
+
+  padding-top: 14px;
 }
 
 .shift-grid {
   display: grid;
+
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+
+  gap: 8px;
 }
 
 .shift-grid button.selected {
   border-color: var(--pink-strong);
+
   background: var(--pink);
   color: var(--title);
+
   font-weight: 800;
 }
 
@@ -681,48 +788,55 @@ onMounted(loadSchedules)
 }
 
 .shift-guide {
-  margin: 8px 0 0;
+  margin: 9px 0 0;
+
   color: var(--muted);
   font-size: 10px;
   text-align: center;
 }
 
-.summary {
-  margin: 18px 0 0;
-  border-radius: 10px;
-  padding: 11px;
+.summary-box {
+  margin: 17px 0 0;
+
+  border-radius: 12px;
+
+  padding: 12px;
+
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   text-align: center;
 }
 
-.summary.office {
+.summary-box.office {
   background: var(--blue);
   color: #455f78;
 }
 
-.summary.overseas {
+.summary-box.overseas {
   background: var(--purple);
   color: var(--purple-strong);
 }
 
-.summary.off {
+.summary-box.off {
   background: var(--green);
   color: #426b5b;
 }
 
-.summary.empty {
+.summary-box.empty {
   background: rgb(125 113 130 / 8%);
+
   color: var(--muted);
 }
 
 @media (max-width: 700px) {
   .schedule-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 
-  .location-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .day-card {
+    min-height: 0;
+    padding: 15px;
   }
 }
 
@@ -736,21 +850,27 @@ onMounted(loadSchedules)
     grid-row: 1;
   }
 
-  .day-card {
-    min-height: 0;
+  .week-controller > button {
+    width: 100%;
   }
 
   .location-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .day-header {
-    align-items: flex-start;
+  .day-title-line strong {
+    font-size: 15px;
   }
 
   .schedule-badge {
-    padding: 4px 7px;
+    padding: 4px 8px;
     font-size: 9px;
+  }
+}
+
+@media (max-width: 380px) {
+  .location-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>
