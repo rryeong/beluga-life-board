@@ -1,14 +1,15 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { supabase, JIBBAP_TABLE } from '@/lib/supabase'
 
 const DAYS = ['월', '화', '수', '목', '금', '토', '일']
 
-const currentUser = ref('벨루')
+const OWNER_NAME = '벨루'
 const menus = ref([])
 const selectedMenuId = ref(null)
 const selectedDay = ref(null)
 const viewWeekStart = ref(getMonday(new Date()))
+const calendarRef = ref(null)
 
 const menuName = ref('')
 const menuType = ref('집밥')
@@ -18,18 +19,14 @@ const saving = ref(false)
 const statusMessage = ref('')
 const isError = ref(false)
 
+let dateCheckTimer = null
+
 function getMonday(date) {
-  const result = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-  )
+  const result = new Date(date.getFullYear(), date.getMonth(), date.getDate())
 
   const day = result.getDay()
 
-  result.setDate(
-    result.getDate() - ((day + 6) % 7),
-  )
+  result.setDate(result.getDate() - ((day + 6) % 7))
 
   result.setHours(0, 0, 0, 0)
 
@@ -46,16 +43,16 @@ function addDays(date, amount) {
 
 function toDateKey(date) {
   const year = date.getFullYear()
+
   const month = String(date.getMonth() + 1).padStart(2, '0')
+
   const day = String(date.getDate()).padStart(2, '0')
 
   return `${year}-${month}-${day}`
 }
 
 function parseDateKey(key) {
-  const [year, month, day] = key
-    .split('-')
-    .map(Number)
+  const [year, month, day] = key.split('-').map(Number)
 
   return new Date(year, month - 1, day)
 }
@@ -79,6 +76,12 @@ function todayDateKey() {
   return toDateKey(new Date())
 }
 
+function getTodayDay() {
+  const todayIndex = (new Date().getDay() + 6) % 7
+
+  return DAYS[todayIndex]
+}
+
 function rowToItem(row) {
   return {
     id: row.id,
@@ -87,35 +90,22 @@ function rowToItem(row) {
     memo: row.memo || '',
     type: row.menu_type || '집밥',
     mealDate: row.meal_date || null,
-    day: row.meal_date
-      ? DAYS[
-          (parseDateKey(row.meal_date).getDay() + 6) % 7
-        ]
-      : null,
-    addedBy: row.added_by || '벨루',
+    day: row.meal_date ? DAYS[(parseDateKey(row.meal_date).getDay() + 6) % 7] : null,
     done: Boolean(row.done),
     rating: Number(row.rating || 0),
-    createdAt: row.created_at
-      ? new Date(row.created_at).getTime()
-      : 0,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : 0,
   }
 }
 
 const isCurrentWeek = computed(() => {
-  return (
-    toDateKey(viewWeekStart.value) ===
-    toDateKey(getMonday(new Date()))
-  )
+  return toDateKey(viewWeekStart.value) === toDateKey(getMonday(new Date()))
 })
 
 const weekTitle = computed(() => {
   const start = viewWeekStart.value
   const end = addDays(start, 6)
 
-  const first =
-    `${start.getFullYear()}년 ` +
-    `${start.getMonth() + 1}월 ` +
-    `${start.getDate()}일`
+  const first = `${start.getFullYear()}년 ` + `${start.getMonth() + 1}월 ` + `${start.getDate()}일`
 
   const last =
     start.getFullYear() === end.getFullYear()
@@ -126,9 +116,7 @@ const weekTitle = computed(() => {
 })
 
 const weekSubtitle = computed(() => {
-  return isCurrentWeek.value
-    ? '이번 주'
-    : '저장된 주간 기록'
+  return isCurrentWeek.value ? '이번 주' : '저장된 주간 기록'
 })
 
 const dayOptions = computed(() => {
@@ -146,23 +134,16 @@ const dayOptions = computed(() => {
 
 const visibleMenus = computed(() => {
   const start = toDateKey(viewWeekStart.value)
-  const end = toDateKey(
-    addDays(viewWeekStart.value, 6),
-  )
+
+  const end = toDateKey(addDays(viewWeekStart.value, 6))
 
   return menus.value.filter((menu) => {
-    return (
-      menu.mealDate &&
-      menu.mealDate >= start &&
-      menu.mealDate <= end
-    )
+    return menu.mealDate && menu.mealDate >= start && menu.mealDate <= end
   })
 })
 
 const completedCount = computed(() => {
-  return visibleMenus.value.filter(
-    (menu) => menu.done,
-  ).length
+  return visibleMenus.value.filter((menu) => menu.done).length
 })
 
 const menuCountText = computed(() => {
@@ -170,22 +151,15 @@ const menuCountText = computed(() => {
     return '이번 주 없음'
   }
 
-  return (
-    `${completedCount.value}/` +
-    `${visibleMenus.value.length} 완료`
-  )
+  return `${completedCount.value}/` + `${visibleMenus.value.length} 완료`
 })
 
 const calendarDays = computed(() => {
   return dayOptions.value.map((option) => {
     const items = visibleMenus.value
-      .filter(
-        (menu) =>
-          menu.mealDate === option.dateKey,
-      )
+      .filter((menu) => menu.mealDate === option.dateKey)
       .sort((a, b) => {
-        const doneDifference =
-          Number(a.done) - Number(b.done)
+        const doneDifference = Number(a.done) - Number(b.done)
 
         if (doneDifference !== 0) {
           return doneDifference
@@ -197,10 +171,8 @@ const calendarDays = computed(() => {
     return {
       ...option,
       items,
-      isToday:
-        option.dateKey === todayDateKey(),
-      isSelected:
-        option.day === selectedDay.value,
+      isToday: option.dateKey === todayDateKey(),
+      isSelected: option.day === selectedDay.value,
     }
   })
 })
@@ -209,13 +181,46 @@ function setInitialSelectedDay() {
   if (selectedDay.value) return
 
   if (isCurrentWeek.value) {
-    const todayIndex =
-      (new Date().getDay() + 6) % 7
-
-    selectedDay.value = DAYS[todayIndex]
+    selectedDay.value = getTodayDay()
   } else {
     selectedDay.value = '월'
   }
+}
+
+async function scrollToToday() {
+  await nextTick()
+
+  const todayElement = calendarRef.value?.querySelector('[data-today="true"]')
+
+  todayElement?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'nearest',
+    inline: 'center',
+  })
+}
+
+async function moveToToday() {
+  viewWeekStart.value = getMonday(new Date())
+  selectedDay.value = getTodayDay()
+  selectedMenuId.value = null
+
+  await scrollToToday()
+}
+
+function startDateWatcher() {
+  let lastDateKey = todayDateKey()
+
+  dateCheckTimer = window.setInterval(async () => {
+    const newDateKey = todayDateKey()
+
+    if (newDateKey === lastDateKey) return
+
+    lastDateKey = newDateKey
+
+    await moveToToday()
+
+    setStatus('날짜가 변경되어 오늘 메뉴로 이동했습니다.')
+  }, 60 * 1000)
 }
 
 async function loadMenus() {
@@ -235,10 +240,7 @@ async function loadMenus() {
   if (error) {
     console.error(error)
 
-    setStatus(
-      `불러오기 실패: ${error.message}`,
-      true,
-    )
+    setStatus(`불러오기 실패: ${error.message}`, true)
 
     return
   }
@@ -265,29 +267,20 @@ async function addMenu() {
     category: 'menu',
     name,
     menu_type: menuType.value,
-    meal_date: toDateKey(
-      dayDate(selectedDay.value),
-    ),
-    added_by: currentUser.value,
+    meal_date: toDateKey(dayDate(selectedDay.value)),
+    added_by: OWNER_NAME,
     done: false,
     rating: 0,
   }
 
-  const { data, error } = await supabase
-    .from(JIBBAP_TABLE)
-    .insert(row)
-    .select()
-    .single()
+  const { data, error } = await supabase.from(JIBBAP_TABLE).insert(row).select().single()
 
   saving.value = false
 
   if (error) {
     console.error(error)
 
-    setStatus(
-      `추가 실패: ${error.message}`,
-      true,
-    )
+    setStatus(`추가 실패: ${error.message}`, true)
 
     return
   }
@@ -312,49 +305,32 @@ async function toggleMenuDone(menu) {
   if (error) {
     console.error(error)
 
-    setStatus(
-      `수정 실패: ${error.message}`,
-      true,
-    )
+    setStatus(`수정 실패: ${error.message}`, true)
 
     return
   }
 
   menu.done = nextDone
 
-  setStatus(
-    nextDone
-      ? '완료 처리했습니다.'
-      : '완료를 취소했습니다.',
-  )
+  setStatus(nextDone ? '완료 처리했습니다.' : '완료를 취소했습니다.')
 }
 
 async function removeMenu(menu) {
-  const shouldDelete = window.confirm(
-    `"${menu.name}" 메뉴를 삭제할까요?`,
-  )
+  const shouldDelete = window.confirm(`"${menu.name}" 메뉴를 삭제할까요?`)
 
   if (!shouldDelete) return
 
-  const { error } = await supabase
-    .from(JIBBAP_TABLE)
-    .delete()
-    .eq('id', menu.id)
+  const { error } = await supabase.from(JIBBAP_TABLE).delete().eq('id', menu.id)
 
   if (error) {
     console.error(error)
 
-    setStatus(
-      `삭제 실패: ${error.message}`,
-      true,
-    )
+    setStatus(`삭제 실패: ${error.message}`, true)
 
     return
   }
 
-  menus.value = menus.value.filter(
-    (item) => item.id !== menu.id,
-  )
+  menus.value = menus.value.filter((item) => item.id !== menu.id)
 
   if (selectedMenuId.value === menu.id) {
     selectedMenuId.value = null
@@ -364,19 +340,12 @@ async function removeMenu(menu) {
 }
 
 function selectMenuForMove(menu) {
-  selectedMenuId.value =
-    selectedMenuId.value === menu.id
-      ? null
-      : menu.id
+  selectedMenuId.value = selectedMenuId.value === menu.id ? null : menu.id
 
   if (selectedMenuId.value) {
-    setStatus(
-      '이동할 요일을 선택하세요.',
-    )
+    setStatus('이동할 요일을 선택하세요.')
   } else {
-    setStatus(
-      '메뉴 이동 선택을 취소했습니다.',
-    )
+    setStatus('메뉴 이동 선택을 취소했습니다.')
   }
 }
 
@@ -387,10 +356,7 @@ async function selectDay(day) {
 
   if (!selectedMenuId.value) return
 
-  const menu = menus.value.find(
-    (item) =>
-      item.id === selectedMenuId.value,
-  )
+  const menu = menus.value.find((item) => item.id === selectedMenuId.value)
 
   if (!menu) {
     selectedMenuId.value = null
@@ -416,10 +382,7 @@ async function selectDay(day) {
   if (error) {
     console.error(error)
 
-    setStatus(
-      `이동 실패: ${error.message}`,
-      true,
-    )
+    setStatus(`이동 실패: ${error.message}`, true)
 
     return
   }
@@ -432,38 +395,31 @@ async function selectDay(day) {
 }
 
 function changeWeek(amount) {
-  viewWeekStart.value = addDays(
-    viewWeekStart.value,
-    amount * 7,
-  )
+  viewWeekStart.value = addDays(viewWeekStart.value, amount * 7)
 
   selectedDay.value = '월'
   selectedMenuId.value = null
 
-  setStatus(
-    amount > 0
-      ? '다음 주를 표시합니다.'
-      : '이전 주를 표시합니다.',
-  )
+  setStatus(amount > 0 ? '다음 주를 표시합니다.' : '이전 주를 표시합니다.')
 }
 
-function goThisWeek() {
-  viewWeekStart.value = getMonday(
-    new Date(),
-  )
+async function goThisWeek() {
+  await moveToToday()
 
-  const todayIndex =
-    (new Date().getDay() + 6) % 7
-
-  selectedDay.value = DAYS[todayIndex]
-  selectedMenuId.value = null
-
-  setStatus('이번 주로 이동했습니다.')
+  setStatus('오늘 날짜로 이동했습니다.')
 }
 
-onMounted(() => {
+onMounted(async () => {
   setInitialSelectedDay()
-  loadMenus()
+  await loadMenus()
+  await scrollToToday()
+  startDateWatcher()
+})
+
+onBeforeUnmount(() => {
+  if (dateCheckTimer) {
+    window.clearInterval(dateCheckTimer)
+  }
 })
 </script>
 
@@ -472,6 +428,7 @@ onMounted(() => {
     <header class="section-header">
       <div>
         <h3>이번 주 메뉴</h3>
+
         <p>요일별 집밥과 밀프렙을 관리해요.</p>
       </div>
 
@@ -480,44 +437,8 @@ onMounted(() => {
       </span>
     </header>
 
-    <div class="user-toggle">
-      <span class="toggle-label">
-        작성자
-      </span>
-
-      <button
-        type="button"
-        class="user-button"
-        :class="{
-          'active-me':
-            currentUser === '벨루',
-        }"
-        @click="currentUser = '벨루'"
-      >
-        벨루
-      </button>
-
-      <button
-        type="button"
-        class="user-button"
-        :class="{
-          'active-husband':
-            currentUser === '오빠',
-        }"
-        @click="currentUser = '오빠'"
-      >
-        오빠
-      </button>
-    </div>
-
     <div class="week-navigation">
-      <button
-        type="button"
-        class="week-button"
-        @click="changeWeek(-1)"
-      >
-        이전 주
-      </button>
+      <button type="button" class="week-button" @click="changeWeek(-1)">이전 주</button>
 
       <div class="week-title">
         {{ weekTitle }}
@@ -527,63 +448,43 @@ onMounted(() => {
         </span>
       </div>
 
-      <button
-        type="button"
-        class="week-button"
-        @click="changeWeek(1)"
-      >
-        다음 주
-      </button>
+      <button type="button" class="week-button" @click="changeWeek(1)">다음 주</button>
     </div>
 
-    <button
-      v-if="!isCurrentWeek"
-      type="button"
-      class="this-week-button"
-      @click="goThisWeek"
-    >
-      이번 주로 돌아가기
+    <button v-if="!isCurrentWeek" type="button" class="this-week-button" @click="goThisWeek">
+      오늘 날짜로 돌아가기
     </button>
 
-    <p
-      class="sync-status"
-      :class="{ error: isError }"
-    >
+    <p class="sync-status" :class="{ error: isError }">
       {{ statusMessage }}
     </p>
 
-    <p
-      v-if="selectedMenuId"
-      class="move-guide"
-    >
+    <p v-if="selectedMenuId" class="move-guide">
       선택한 메뉴를 이동하려면
-      <strong>
-        원하는 요일 제목
-      </strong>
+
+      <strong> 원하는 요일 제목 </strong>
+
       을 누르세요.
     </p>
 
-    <div
-      v-if="loading"
-      class="loading"
-    >
-      메뉴를 불러오는 중입니다.
-    </div>
+    <div v-if="loading" class="loading">메뉴를 불러오는 중입니다.</div>
 
-    <div
-      v-else
-      class="calendar"
-    >
+    <div v-else ref="calendarRef" class="calendar">
       <article
         v-for="day in calendarDays"
         :key="day.dateKey"
         class="day-column"
+        :class="{
+          today: day.isToday,
+        }"
+        :data-today="day.isToday ? 'true' : 'false'"
       >
         <button
           type="button"
           class="day-header"
           :class="{
             selected: day.isSelected,
+            today: day.isToday,
           }"
           @click="selectDay(day.day)"
         >
@@ -593,21 +494,11 @@ onMounted(() => {
             {{ formatMonthDay(day.date) }}
           </span>
 
-          <span
-            v-if="day.isToday"
-            class="today-label"
-          >
-            오늘
-          </span>
+          <span v-if="day.isToday" class="today-label"> 오늘 </span>
         </button>
 
         <div class="day-body">
-          <div
-            v-if="day.items.length === 0"
-            class="day-empty"
-          >
-            메뉴 없음
-          </div>
+          <div v-if="day.items.length === 0" class="day-empty">메뉴 없음</div>
 
           <article
             v-for="menu in day.items"
@@ -615,17 +506,11 @@ onMounted(() => {
             class="menu-note"
             :class="{
               done: menu.done,
-              'move-selected':
-                selectedMenuId === menu.id,
+              'move-selected': selectedMenuId === menu.id,
             }"
             @click="selectMenuForMove(menu)"
           >
-            <span
-              v-if="menu.done"
-              class="done-stamp"
-            >
-              완료
-            </span>
+            <span v-if="menu.done" class="done-stamp"> 완료 </span>
 
             <button
               type="button"
@@ -633,14 +518,8 @@ onMounted(() => {
               :class="{
                 checked: menu.done,
               }"
-              :aria-label="
-                menu.done
-                  ? '완료 취소'
-                  : '완료 표시'
-              "
-              @click.stop="
-                toggleMenuDone(menu)
-              "
+              :aria-label="menu.done ? '완료 취소' : '완료 표시'"
+              @click.stop="toggleMenuDone(menu)"
             >
               ✓
             </button>
@@ -654,27 +533,11 @@ onMounted(() => {
                 <span
                   class="menu-badge"
                   :class="{
-                    'meal-prep':
-                      menu.type === '밀프렙',
+                    'meal-prep': menu.type === '밀프렙',
                   }"
                 >
                   {{ menu.type }}
                 </span>
-
-                <span
-                  class="user-magnet"
-                  :class="{
-                    me:
-                      menu.addedBy ===
-                      '벨루',
-                    husband:
-                      menu.addedBy ===
-                      '오빠',
-                  }"
-                  :title="
-                    `${menu.addedBy} 추가`
-                  "
-                />
               </div>
             </div>
 
@@ -682,9 +545,7 @@ onMounted(() => {
               type="button"
               class="delete-button"
               aria-label="메뉴 삭제"
-              @click.stop="
-                removeMenu(menu)
-              "
+              @click.stop="removeMenu(menu)"
             >
               ×
             </button>
@@ -693,44 +554,22 @@ onMounted(() => {
       </article>
     </div>
 
-    <form
-      class="add-form"
-      @submit.prevent="addMenu"
-    >
-      <input
-        v-model="menuName"
-        type="text"
-        maxlength="40"
-        placeholder="예: 김치찌개, 닭볶음탕"
-      />
+    <form class="add-form" @submit.prevent="addMenu">
+      <input v-model="menuName" type="text" maxlength="40" placeholder="예: 김치찌개, 닭볶음탕" />
 
       <select v-model="selectedDay">
-        <option
-          v-for="option in dayOptions"
-          :key="option.day"
-          :value="option.day"
-        >
+        <option v-for="option in dayOptions" :key="option.day" :value="option.day">
           {{ option.label }}
         </option>
       </select>
 
       <select v-model="menuType">
-        <option value="집밥">
-          집밥
-        </option>
+        <option value="집밥">집밥</option>
 
-        <option value="밀프렙">
-          밀프렙
-        </option>
+        <option value="밀프렙">밀프렙</option>
       </select>
 
-      <button
-        type="submit"
-        class="add-button"
-        :disabled="
-          saving || !menuName.trim()
-        "
-      >
+      <button type="submit" class="add-button" :disabled="saving || !menuName.trim()">
         {{ saving ? '저장 중' : '추가' }}
       </button>
     </form>
@@ -776,44 +615,6 @@ onMounted(() => {
 .menu-count {
   color: var(--muted);
   font-size: 13px;
-}
-
-.user-toggle {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  width: fit-content;
-  margin-bottom: 16px;
-  padding: 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: white;
-}
-
-.toggle-label {
-  padding-left: 6px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.user-button {
-  border: 0;
-  border-radius: 999px;
-  padding: 7px 14px;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.user-button.active-me {
-  background: var(--coral);
-  color: white;
-}
-
-.user-button.active-husband {
-  background: var(--teal);
-  color: white;
 }
 
 .week-navigation {
@@ -897,10 +698,11 @@ onMounted(() => {
 
 .calendar {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   margin-bottom: 16px;
-  padding: 3px 3px 14px;
+  padding: 18px 10px 26px;
   overflow-x: auto;
+  scroll-padding-inline: 50%;
   scroll-snap-type: x proximity;
 }
 
@@ -909,7 +711,19 @@ onMounted(() => {
   flex: 0 0 128px;
   flex-direction: column;
   gap: 7px;
-  scroll-snap-align: start;
+  scroll-snap-align: center;
+  transition:
+    flex-basis 0.25s ease,
+    transform 0.25s ease,
+    filter 0.25s ease;
+}
+
+.day-column.today {
+  position: relative;
+  z-index: 3;
+  flex-basis: 168px;
+  transform: translateY(-4px) scale(1.04);
+  filter: drop-shadow(0 12px 16px rgb(229 107 130 / 22%));
 }
 
 .day-header {
@@ -929,6 +743,20 @@ onMounted(() => {
   background: #ffc0cb;
 }
 
+.day-header.today {
+  border-color: var(--pink);
+  padding: 11px 5px;
+  background: linear-gradient(135deg, #ffd4dc, #fff0f5);
+  box-shadow:
+    0 0 0 3px rgb(255 143 163 / 22%),
+    0 8px 18px rgb(229 107 130 / 18%);
+  font-size: 16px;
+}
+
+.day-header.today.selected {
+  background: linear-gradient(135deg, #ffb5c3, #ffdce4);
+}
+
 .day-date {
   display: block;
   margin-top: 2px;
@@ -937,10 +765,18 @@ onMounted(() => {
   font-weight: 500;
 }
 
+.day-header.today .day-date {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
 .today-label {
-  display: block;
-  margin-top: 1px;
-  color: var(--pink-dark);
+  display: inline-block;
+  margin-top: 5px;
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: var(--pink-dark);
+  color: white;
   font-size: 10px;
 }
 
@@ -951,6 +787,11 @@ onMounted(() => {
   gap: 7px;
 }
 
+.day-column.today .day-body {
+  min-height: 72px;
+  gap: 11px;
+}
+
 .day-empty {
   border: 1px dashed var(--line);
   border-radius: 8px;
@@ -958,6 +799,15 @@ onMounted(() => {
   color: var(--muted);
   font-size: 11px;
   text-align: center;
+}
+
+.day-column.today .day-empty {
+  min-height: 68px;
+  padding: 22px 8px;
+  border-color: rgb(255 143 163 / 42%);
+  border-radius: 11px;
+  background: rgb(255 240 245 / 70%);
+  font-size: 12px;
 }
 
 .menu-note {
@@ -973,6 +823,23 @@ onMounted(() => {
     0 2px 4px rgb(0 0 0 / 12%),
     0 5px 12px rgb(0 0 0 / 12%);
   cursor: pointer;
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    padding 0.25s ease;
+}
+
+.day-column.today .menu-note {
+  min-height: 78px;
+  gap: 10px;
+  padding: 14px 12px;
+  border: 1px solid rgb(255 143 163 / 18%);
+  border-radius: 11px;
+  box-shadow:
+    0 4px 8px rgb(0 0 0 / 14%),
+    0 11px 22px rgb(229 107 130 / 20%);
+  transform: scale(1.025);
+  transform-origin: top center;
 }
 
 .menu-note.done {
@@ -1000,6 +867,13 @@ onMounted(() => {
   cursor: pointer;
 }
 
+.day-column.today .check-button {
+  width: 23px;
+  height: 23px;
+  border-width: 2px;
+  font-size: 13px;
+}
+
 .check-button.checked {
   border-color: var(--teal);
   background: var(--teal);
@@ -1018,6 +892,11 @@ onMounted(() => {
   overflow-wrap: anywhere;
 }
 
+.day-column.today .menu-name {
+  font-size: 15px;
+  line-height: 1.4;
+}
+
 .menu-note.done .menu-name {
   color: var(--ink-soft);
   text-decoration: line-through;
@@ -1030,6 +909,11 @@ onMounted(() => {
   margin-top: 6px;
 }
 
+.day-column.today .menu-meta {
+  gap: 7px;
+  margin-top: 8px;
+}
+
 .menu-badge {
   border-radius: 999px;
   padding: 2px 7px;
@@ -1038,37 +922,17 @@ onMounted(() => {
   font-size: 9.5px;
 }
 
+.day-column.today .menu-badge {
+  padding: 3px 9px;
+  font-size: 10.5px;
+}
+
 .menu-badge.meal-prep {
   background: rgb(255 143 163 / 20%);
   color: var(--pink-dark);
 }
 
-.user-magnet {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  box-shadow:
-    inset 0 -2px 2px rgb(0 0 0 / 25%),
-    0 1px 2px rgb(0 0 0 / 30%);
-}
-
-.user-magnet.me {
-  background: radial-gradient(
-    circle at 35% 30%,
-    #f0a488,
-    var(--coral)
-  );
-}
-
-.user-magnet.husband {
-  background: radial-gradient(
-    circle at 35% 30%,
-    #7fb3a5,
-    var(--teal)
-  );
-}
-
-.delete-button {
+.day-column.today .delete-button {
   flex: none;
   border: 0;
   padding: 2px;
@@ -1077,6 +941,10 @@ onMounted(() => {
   font-size: 16px;
   cursor: pointer;
   opacity: 0.55;
+}
+
+.day-column.today .delete-button {
+  font-size: 19px;
 }
 
 .done-stamp {
@@ -1090,6 +958,13 @@ onMounted(() => {
   font-size: 9px;
   font-weight: 700;
   transform: rotate(-12deg);
+}
+
+.day-column.today .done-stamp {
+  top: 7px;
+  right: 27px;
+  padding: 2px 6px;
+  font-size: 10px;
 }
 
 .add-form {
@@ -1137,8 +1012,7 @@ onMounted(() => {
   }
 
   .week-navigation {
-    grid-template-columns:
-      70px 1fr 70px;
+    grid-template-columns: 70px 1fr 70px;
     gap: 5px;
     padding: 8px;
   }
@@ -1152,9 +1026,29 @@ onMounted(() => {
     font-size: 12px;
   }
 
-  .user-toggle {
-    width: 100%;
-    justify-content: center;
+  .calendar {
+    gap: 10px;
+    padding-top: 16px;
+  }
+
+  .day-column.today {
+    flex-basis: 158px;
+    transform: translateY(-2px) scale(1.02);
+  }
+
+  .day-column.today .menu-note {
+    min-height: 72px;
+    padding: 12px 10px;
+    transform: scale(1.015);
+  }
+
+  .day-column.today .menu-name {
+    font-size: 14px;
+  }
+
+  .day-column.today .check-button {
+    width: 22px;
+    height: 22px;
   }
 
   .add-form {

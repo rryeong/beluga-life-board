@@ -33,17 +33,11 @@ const statusMessage = ref('')
 const isError = ref(false)
 
 function getMonday(date) {
-  const result = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-  )
+  const result = new Date(date.getFullYear(), date.getMonth(), date.getDate())
 
   const day = result.getDay()
 
-  result.setDate(
-    result.getDate() - ((day + 6) % 7),
-  )
+  result.setDate(result.getDate() - ((day + 6) % 7))
 
   result.setHours(0, 0, 0, 0)
 
@@ -61,13 +55,9 @@ function addDays(date, amount) {
 function toDateKey(date) {
   const year = date.getFullYear()
 
-  const month = String(
-    date.getMonth() + 1,
-  ).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
 
-  const day = String(
-    date.getDate(),
-  ).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
 
   return `${year}-${month}-${day}`
 }
@@ -82,10 +72,7 @@ function setStatus(message, error = false) {
 }
 
 const isCurrentWeek = computed(() => {
-  return (
-    toDateKey(viewWeekStart.value) ===
-    toDateKey(getMonday(new Date()))
-  )
+  return toDateKey(viewWeekStart.value) === toDateKey(getMonday(new Date()))
 })
 
 const weekTitle = computed(() => {
@@ -103,31 +90,23 @@ const weekTitle = computed(() => {
 
 const weekdayCards = computed(() => {
   return WEEKDAYS.map((day, index) => {
-    const date = addDays(
-      viewWeekStart.value,
-      index,
-    )
+    const date = addDays(viewWeekStart.value, index)
 
     const dateKey = toDateKey(date)
 
     const options = BUS_OPTIONS.map((option) => {
-      const savedItem =
-        scheduleItems.value.find(
-          (item) =>
-            item.bus_date === dateKey &&
-            item.bus_direction === 'return' &&
-            item.bus_type === option.type,
-        )
+      const savedItem = scheduleItems.value.find(
+        (item) =>
+          item.bus_date === dateKey &&
+          item.bus_direction === 'return' &&
+          item.bus_type === option.type,
+      )
 
       return {
         ...option,
         id: savedItem?.id || null,
-        reserved: Boolean(
-          savedItem?.reserved,
-        ),
-        boarded: Boolean(
-          savedItem?.boarded,
-        ),
+        reserved: Boolean(savedItem?.reserved),
+        boarded: Boolean(savedItem?.boarded),
       }
     })
 
@@ -136,39 +115,28 @@ const weekdayCards = computed(() => {
       date,
       dateKey,
       options,
-      isToday:
-        dateKey === toDateKey(new Date()),
+      isToday: dateKey === toDateKey(new Date()),
     }
   })
 })
 
 const selectedCount = computed(() => {
-  return scheduleItems.value.filter(
-    (item) =>
-      item.bus_direction === 'return' &&
-      item.reserved,
-  ).length
+  return scheduleItems.value.filter((item) => item.bus_direction === 'return' && item.reserved)
+    .length
 })
 
 const boardedCount = computed(() => {
-  return scheduleItems.value.filter(
-    (item) =>
-      item.bus_direction === 'return' &&
-      item.boarded,
-  ).length
+  return scheduleItems.value.filter((item) => item.bus_direction === 'return' && item.boarded)
+    .length
 })
 
 async function loadSchedule() {
   loading.value = true
   setStatus('퇴근버스 일정을 불러오는 중...')
 
-  const startDate = toDateKey(
-    viewWeekStart.value,
-  )
+  const startDate = toDateKey(viewWeekStart.value)
 
-  const endDate = toDateKey(
-    addDays(viewWeekStart.value, 4),
-  )
+  const endDate = toDateKey(addDays(viewWeekStart.value, 4))
 
   const { data, error } = await supabase
     .from(TABLE_NAME)
@@ -185,10 +153,7 @@ async function loadSchedule() {
   if (error) {
     console.error(error)
 
-    setStatus(
-      `불러오기 실패: ${error.message}`,
-      true,
-    )
+    setStatus(`불러오기 실패: ${error.message}`, true)
 
     return
   }
@@ -201,91 +166,57 @@ async function loadSchedule() {
 async function selectBus(dayItem, busOption) {
   if (updatingKey.value) return
 
-  const key =
-    `${dayItem.dateKey}-${busOption.type}`
+  const key = `${dayItem.dateKey}-${busOption.type}`
 
   updatingKey.value = key
 
-  const existing =
-    scheduleItems.value.find(
-      (item) =>
-        item.bus_date ===
-          dayItem.dateKey &&
-        item.bus_direction ===
-          'return' &&
-        item.bus_type ===
-          busOption.type,
-    )
+  const existing = scheduleItems.value.find(
+    (item) =>
+      item.bus_date === dayItem.dateKey &&
+      item.bus_direction === 'return' &&
+      item.bus_type === busOption.type,
+  )
 
   if (existing?.reserved) {
-    const { error } = await supabase
-      .from(TABLE_NAME)
-      .delete()
-      .eq('id', existing.id)
+    const { error } = await supabase.from(TABLE_NAME).delete().eq('id', existing.id)
 
     updatingKey.value = null
 
     if (error) {
       console.error(error)
 
-      setStatus(
-        `선택 취소 실패: ${error.message}`,
-        true,
-      )
+      setStatus(`선택 취소 실패: ${error.message}`, true)
 
       return
     }
 
-    scheduleItems.value =
-      scheduleItems.value.filter(
-        (item) => item.id !== existing.id,
-      )
+    scheduleItems.value = scheduleItems.value.filter((item) => item.id !== existing.id)
 
-    setStatus(
-      `${dayItem.day}요일 ${busOption.title} 선택을 취소했습니다.`,
-    )
+    setStatus(`${dayItem.day}요일 ${busOption.title} 선택을 취소했습니다.`)
 
     return
   }
 
-  const otherSelectedItems =
-    scheduleItems.value.filter(
-      (item) =>
-        item.bus_date ===
-          dayItem.dateKey &&
-        item.bus_direction ===
-          'return' &&
-        item.reserved,
-    )
+  const otherSelectedItems = scheduleItems.value.filter(
+    (item) => item.bus_date === dayItem.dateKey && item.bus_direction === 'return' && item.reserved,
+  )
 
   if (otherSelectedItems.length > 0) {
-    const ids = otherSelectedItems.map(
-      (item) => item.id,
-    )
+    const ids = otherSelectedItems.map((item) => item.id)
 
-    const { error: deleteError } =
-      await supabase
-        .from(TABLE_NAME)
-        .delete()
-        .in('id', ids)
+    const { error: deleteError } = await supabase.from(TABLE_NAME).delete().in('id', ids)
 
     if (deleteError) {
       updatingKey.value = null
 
       console.error(deleteError)
 
-      setStatus(
-        `기존 선택 삭제 실패: ${deleteError.message}`,
-        true,
-      )
+      setStatus(`기존 선택 삭제 실패: ${deleteError.message}`, true)
 
       return
     }
 
-    scheduleItems.value =
-      scheduleItems.value.filter(
-        (item) => !ids.includes(item.id),
-      )
+    scheduleItems.value = scheduleItems.value.filter((item) => !ids.includes(item.id))
   }
 
   const newRow = {
@@ -296,55 +227,39 @@ async function selectBus(dayItem, busOption) {
     boarded: false,
   }
 
-  const { data, error } = await supabase
-    .from(TABLE_NAME)
-    .insert(newRow)
-    .select()
-    .single()
+  const { data, error } = await supabase.from(TABLE_NAME).insert(newRow).select().single()
 
   updatingKey.value = null
 
   if (error) {
     console.error(error)
 
-    setStatus(
-      `저장 실패: ${error.message}`,
-      true,
-    )
+    setStatus(`저장 실패: ${error.message}`, true)
 
     return
   }
 
   scheduleItems.value.push(data)
 
-  setStatus(
-    `${dayItem.day}요일 ${busOption.title}를 선택했습니다.`,
-  )
+  setStatus(`${dayItem.day}요일 ${busOption.title}를 선택했습니다.`)
 }
 
 async function toggleBoarded(dayItem, busOption) {
-  if (
-    !busOption.id ||
-    !busOption.reserved ||
-    updatingKey.value
-  ) {
+  if (!busOption.id || !busOption.reserved || updatingKey.value) {
     return
   }
 
-  const key =
-    `${dayItem.dateKey}-${busOption.type}-boarded`
+  const key = `${dayItem.dateKey}-${busOption.type}-boarded`
 
   updatingKey.value = key
 
-  const nextBoarded =
-    !busOption.boarded
+  const nextBoarded = !busOption.boarded
 
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .update({
       boarded: nextBoarded,
-      updated_at:
-        new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     })
     .eq('id', busOption.id)
     .select()
@@ -355,43 +270,30 @@ async function toggleBoarded(dayItem, busOption) {
   if (error) {
     console.error(error)
 
-    setStatus(
-      `탑승 상태 저장 실패: ${error.message}`,
-      true,
-    )
+    setStatus(`탑승 상태 저장 실패: ${error.message}`, true)
 
     return
   }
 
-  const index =
-    scheduleItems.value.findIndex(
-      (item) => item.id === busOption.id,
-    )
+  const index = scheduleItems.value.findIndex((item) => item.id === busOption.id)
 
   if (index !== -1) {
     scheduleItems.value[index] = data
   }
 
   setStatus(
-    nextBoarded
-      ? `${dayItem.day}요일 탑승 완료`
-      : `${dayItem.day}요일 탑승 완료를 취소했습니다.`,
+    nextBoarded ? `${dayItem.day}요일 탑승 완료` : `${dayItem.day}요일 탑승 완료를 취소했습니다.`,
   )
 }
 
 async function changeWeek(amount) {
-  viewWeekStart.value = addDays(
-    viewWeekStart.value,
-    amount * 7,
-  )
+  viewWeekStart.value = addDays(viewWeekStart.value, amount * 7)
 
   await loadSchedule()
 }
 
 async function goThisWeek() {
-  viewWeekStart.value = getMonday(
-    new Date(),
-  )
+  viewWeekStart.value = getMonday(new Date())
 
   await loadSchedule()
 }
@@ -407,80 +309,41 @@ onMounted(() => {
       <div>
         <h3>퇴근버스</h3>
 
-        <p>
-          평일마다 이용할 퇴근버스를
-          선택해요.
-        </p>
+        <p>평일마다 이용할 퇴근버스를 선택해요.</p>
       </div>
 
       <div class="summary">
-        <span>
-          선택 {{ selectedCount }}/5
-        </span>
+        <span> 선택 {{ selectedCount }}/5 </span>
 
-        <span>
-          탑승 {{ boardedCount }}/5
-        </span>
+        <span> 탑승 {{ boardedCount }}/5 </span>
       </div>
     </header>
 
     <div class="week-navigation">
-      <button
-        type="button"
-        class="week-button"
-        @click="changeWeek(-1)"
-      >
-        이전 주
-      </button>
+      <button type="button" class="week-button" @click="changeWeek(-1)">이전 주</button>
 
       <div class="week-title">
         {{ weekTitle }}
 
         <span>
-          {{
-            isCurrentWeek
-              ? '이번 주'
-              : '저장된 주간 기록'
-          }}
+          {{ isCurrentWeek ? '이번 주' : '저장된 주간 기록' }}
         </span>
       </div>
 
-      <button
-        type="button"
-        class="week-button"
-        @click="changeWeek(1)"
-      >
-        다음 주
-      </button>
+      <button type="button" class="week-button" @click="changeWeek(1)">다음 주</button>
     </div>
 
-    <button
-      v-if="!isCurrentWeek"
-      type="button"
-      class="this-week-button"
-      @click="goThisWeek"
-    >
+    <button v-if="!isCurrentWeek" type="button" class="this-week-button" @click="goThisWeek">
       이번 주로 돌아가기
     </button>
 
-    <p
-      class="sync-status"
-      :class="{ error: isError }"
-    >
+    <p class="sync-status" :class="{ error: isError }">
       {{ statusMessage }}
     </p>
 
-    <div
-      v-if="loading"
-      class="loading"
-    >
-      퇴근버스 일정을 불러오는 중...
-    </div>
+    <div v-if="loading" class="loading">퇴근버스 일정을 불러오는 중...</div>
 
-    <div
-      v-else
-      class="weekday-list"
-    >
+    <div v-else class="weekday-list">
       <article
         v-for="dayItem in weekdayCards"
         :key="dayItem.dateKey"
@@ -491,18 +354,14 @@ onMounted(() => {
       >
         <header class="day-header">
           <div>
-            <strong>
-              {{ dayItem.day }}요일
-            </strong>
+            <strong> {{ dayItem.day }}요일 </strong>
 
             <span>
               {{ formatMonthDay(dayItem.date) }}
             </span>
           </div>
 
-          <small v-if="dayItem.isToday">
-            오늘
-          </small>
+          <small v-if="dayItem.isToday"> 오늘 </small>
         </header>
 
         <div class="bus-options">
@@ -518,17 +377,10 @@ onMounted(() => {
             <button
               type="button"
               class="select-button"
-              :disabled="
-                updatingKey ===
-                `${dayItem.dateKey}-${option.type}`
-              "
-              @click="
-                selectBus(dayItem, option)
-              "
+              :disabled="updatingKey === `${dayItem.dateKey}-${option.type}`"
+              @click="selectBus(dayItem, option)"
             >
-              <span class="selection-circle">
-                ✓
-              </span>
+              <span class="selection-circle"> ✓ </span>
 
               <span class="option-text">
                 <strong>
@@ -548,22 +400,11 @@ onMounted(() => {
                 checked: option.boarded,
               }"
               :disabled="
-                !option.reserved ||
-                updatingKey ===
-                  `${dayItem.dateKey}-${option.type}-boarded`
+                !option.reserved || updatingKey === `${dayItem.dateKey}-${option.type}-boarded`
               "
-              @click="
-                toggleBoarded(
-                  dayItem,
-                  option,
-                )
-              "
+              @click="toggleBoarded(dayItem, option)"
             >
-              {{
-                option.boarded
-                  ? '탑승 완료'
-                  : '탑승 체크'
-              }}
+              {{ option.boarded ? '탑승 완료' : '탑승 체크' }}
             </button>
           </article>
         </div>
@@ -734,10 +575,7 @@ onMounted(() => {
 
 .bus-options {
   display: grid;
-  grid-template-columns: repeat(
-    3,
-    minmax(0, 1fr)
-  );
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 9px;
 }
 
@@ -847,8 +685,7 @@ onMounted(() => {
   }
 
   .week-navigation {
-    grid-template-columns:
-      68px 1fr 68px;
+    grid-template-columns: 68px 1fr 68px;
     gap: 5px;
     padding: 8px;
   }

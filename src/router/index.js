@@ -1,47 +1,51 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import HomeView from '@/views/HomeView.vue'
+import MealLayout from '@/views/meal/MealLayout.vue'
 
-import MealLayout from '@/layouts/MealLayout.vue'
 import WeeklyMenuView from '@/views/meal/WeeklyMenuView.vue'
 import FridgeView from '@/views/meal/FridgeView.vue'
 import FreezerView from '@/views/meal/FreezerView.vue'
 import MealPrepView from '@/views/meal/MealPrepView.vue'
 import WishlistView from '@/views/meal/WishlistView.vue'
+import ShoppingListView from '@/views/meal/ShoppingListView.vue'
 
-import BusLayout from '@/layouts/BusLayout.vue'
 import CommuteBusView from '@/views/bus/CommuteBusView.vue'
 import ReturnBusView from '@/views/bus/ReturnBusView.vue'
+
+import CommuteLayout from '@/views/commute/CommuteLayout.vue'
+import BelugaCommuteView from '@/views/commute/BelugaCommuteView.vue'
+import OppaCommuteView from '@/views/commute/OppaCommuteView.vue'
 
 import TennisView from '@/views/tennis/TennisView.vue'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
 
   routes: [
     {
       path: '/',
-      name: 'home',
-      component: HomeView,
+      redirect: '/meal/weekly-menu',
     },
+
     {
       path: '/meal',
       component: MealLayout,
       redirect: '/meal/weekly-menu',
+
       children: [
         {
           path: 'weekly-menu',
-          name: 'weekly-menu',
+          name: 'meal-weekly-menu',
           component: WeeklyMenuView,
         },
         {
           path: 'fridge',
-          name: 'fridge',
+          name: 'meal-fridge',
           component: FridgeView,
         },
         {
           path: 'freezer',
-          name: 'freezer',
+          name: 'meal-freezer',
           component: FreezerView,
         },
         {
@@ -51,38 +55,71 @@ const router = createRouter({
         },
         {
           path: 'wishlist',
-          name: 'wishlist',
+          name: 'meal-wishlist',
           component: WishlistView,
         },
+        {
+          path: 'shopping',
+          name: 'meal-shopping',
+          component: ShoppingListView,
+        },
       ],
     },
+
+    {
+      path: '/bus/commute',
+      name: 'bus-commute',
+      component: CommuteBusView,
+    },
+
+    {
+      path: '/bus/return',
+      name: 'bus-return',
+      component: ReturnBusView,
+    },
+
     {
       path: '/bus',
-      component: BusLayout,
       redirect: '/bus/commute',
+    },
+
+    {
+      path: '/commute',
+      component: CommuteLayout,
+      redirect: '/commute/beluga',
+
       children: [
         {
-          path: 'commute',
-          name: 'commute-bus',
-          component: CommuteBusView,
+          path: 'beluga',
+          name: 'commute-beluga',
+          component: BelugaCommuteView,
         },
         {
-          path: 'return',
-          name: 'return-bus',
-          component: ReturnBusView,
+          path: 'oppa',
+          name: 'commute-oppa',
+          component: OppaCommuteView,
         },
       ],
     },
+
     {
       path: '/tennis',
       name: 'tennis',
       component: TennisView,
     },
+
     {
       path: '/:pathMatch(.*)*',
-      redirect: '/',
+      redirect: '/meal/weekly-menu',
     },
   ],
+
+  scrollBehavior() {
+    return {
+      top: 0,
+      left: 0,
+    }
+  },
 })
 
 export default router

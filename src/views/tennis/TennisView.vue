@@ -5,6 +5,21 @@ import { supabase } from '@/lib/supabase'
 const TABLE_NAME = 'tennis_schedule_items'
 const DAYS = ['월', '화', '수', '목', '금', '토', '일']
 
+const statusOptions = [
+  {
+    value: 'go',
+    label: '가자🎾',
+  },
+  {
+    value: 'rest',
+    label: '쉬자🫠',
+  },
+  {
+    value: 'rain',
+    label: '비가 와☔️',
+  },
+]
+
 const viewWeekStart = ref(getMonday(new Date()))
 const scheduleItems = ref([])
 
@@ -15,17 +30,11 @@ const statusMessage = ref('')
 const isError = ref(false)
 
 function getMonday(date) {
-  const result = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-  )
+  const result = new Date(date.getFullYear(), date.getMonth(), date.getDate())
 
   const day = result.getDay()
 
-  result.setDate(
-    result.getDate() - ((day + 6) % 7),
-  )
+  result.setDate(result.getDate() - ((day + 6) % 7))
 
   result.setHours(0, 0, 0, 0)
 
@@ -43,19 +52,15 @@ function addDays(date, amount) {
 function toDateKey(date) {
   const year = date.getFullYear()
 
-  const month = String(
-    date.getMonth() + 1,
-  ).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
 
-  const day = String(
-    date.getDate(),
-  ).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
 
   return `${year}-${month}-${day}`
 }
 
 function formatMonthDay(date) {
-  return `${date.getMonth() + 1}/${date.getDate()}`
+  return `${date.getMonth() + 1}/` + `${date.getDate()}`
 }
 
 function setStatus(message, error = false) {
@@ -63,11 +68,12 @@ function setStatus(message, error = false) {
   isError.value = error
 }
 
+function getStatusLabel(status) {
+  return statusOptions.find((option) => option.value === status)?.label || ''
+}
+
 const isCurrentWeek = computed(() => {
-  return (
-    toDateKey(viewWeekStart.value) ===
-    toDateKey(getMonday(new Date()))
-  )
+  return toDateKey(viewWeekStart.value) === toDateKey(getMonday(new Date()))
 })
 
 const weekTitle = computed(() => {
@@ -85,46 +91,43 @@ const weekTitle = computed(() => {
 
 const dayCards = computed(() => {
   return DAYS.map((day, index) => {
-    const date = addDays(
-      viewWeekStart.value,
-      index,
-    )
+    const date = addDays(viewWeekStart.value, index)
 
     const dateKey = toDateKey(date)
 
-    const savedItem = scheduleItems.value.find(
-      (item) => item.tennis_date === dateKey,
-    )
+    const savedItem = scheduleItems.value.find((item) => item.tennis_date === dateKey)
 
     return {
       day,
       date,
       dateKey,
       id: savedItem?.id || null,
-      isGoing: Boolean(savedItem?.is_going),
-      isToday:
-        dateKey === toDateKey(new Date()),
+      status: savedItem?.tennis_status || null,
+      isToday: dateKey === toDateKey(new Date()),
     }
   })
 })
 
-const goingCount = computed(() => {
-  return dayCards.value.filter(
-    (item) => item.isGoing,
-  ).length
+const goCount = computed(() => {
+  return dayCards.value.filter((item) => item.status === 'go').length
+})
+
+const restCount = computed(() => {
+  return dayCards.value.filter((item) => item.status === 'rest').length
+})
+
+const rainCount = computed(() => {
+  return dayCards.value.filter((item) => item.status === 'rain').length
 })
 
 async function loadSchedule() {
   loading.value = true
+
   setStatus('테니스 일정을 불러오는 중...')
 
-  const startDate = toDateKey(
-    viewWeekStart.value,
-  )
+  const startDate = toDateKey(viewWeekStart.value)
 
-  const endDate = toDateKey(
-    addDays(viewWeekStart.value, 6),
-  )
+  const endDate = toDateKey(addDays(viewWeekStart.value, 6))
 
   const { data, error } = await supabase
     .from(TABLE_NAME)
@@ -140,10 +143,7 @@ async function loadSchedule() {
   if (error) {
     console.error(error)
 
-    setStatus(
-      `불러오기 실패: ${error.message}`,
-      true,
-    )
+    setStatus(`불러오기 실패: ${error.message}`, true)
 
     return
   }
@@ -153,26 +153,30 @@ async function loadSchedule() {
   setStatus('공유 데이터와 동기화됨')
 }
 
-async function toggleTennis(dayItem) {
+async function selectTennisStatus(dayItem, selectedStatus) {
   if (updatingDate.value) return
 
   updatingDate.value = dayItem.dateKey
 
-  const existingItem =
-    scheduleItems.value.find(
-      (item) =>
-        item.tennis_date === dayItem.dateKey,
-    )
+  const existingItem = scheduleItems.value.find((item) => item.tennis_date === dayItem.dateKey)
 
-  const nextValue = !dayItem.isGoing
+  // 이미 선택된 버튼을 다시 누르면 해제
+  const nextStatus = dayItem.status === selectedStatus ? null : selectedStatus
+
+  const row = {
+    tennis_date: dayItem.dateKey,
+    tennis_status: nextStatus,
+
+    // 기존 is_going 컬럼과 호환
+    is_going: nextStatus === 'go',
+
+    updated_at: new Date().toISOString(),
+  }
 
   if (existingItem) {
     const { data, error } = await supabase
       .from(TABLE_NAME)
-      .update({
-        is_going: nextValue,
-        updated_at: new Date().toISOString(),
-      })
+      .update(row)
       .eq('id', existingItem.id)
       .select()
       .single()
@@ -182,18 +186,12 @@ async function toggleTennis(dayItem) {
     if (error) {
       console.error(error)
 
-      setStatus(
-        `저장 실패: ${error.message}`,
-        true,
-      )
+      setStatus(`저장 실패: ${error.message}`, true)
 
       return
     }
 
-    const index =
-      scheduleItems.value.findIndex(
-        (item) => item.id === existingItem.id,
-      )
+    const index = scheduleItems.value.findIndex((item) => item.id === existingItem.id)
 
     scheduleItems.value[index] = data
   } else {
@@ -201,7 +199,8 @@ async function toggleTennis(dayItem) {
       .from(TABLE_NAME)
       .insert({
         tennis_date: dayItem.dateKey,
-        is_going: true,
+        tennis_status: nextStatus,
+        is_going: nextStatus === 'go',
       })
       .select()
       .single()
@@ -211,10 +210,7 @@ async function toggleTennis(dayItem) {
     if (error) {
       console.error(error)
 
-      setStatus(
-        `저장 실패: ${error.message}`,
-        true,
-      )
+      setStatus(`저장 실패: ${error.message}`, true)
 
       return
     }
@@ -222,26 +218,21 @@ async function toggleTennis(dayItem) {
     scheduleItems.value.push(data)
   }
 
-  setStatus(
-    nextValue
-      ? `${dayItem.day}요일 테니스 간다`
-      : `${dayItem.day}요일 테니스 안 간다`,
-  )
+  if (nextStatus) {
+    setStatus(`${dayItem.day}요일을 ` + `${getStatusLabel(nextStatus)}로 저장했습니다.`)
+  } else {
+    setStatus(`${dayItem.day}요일 테니스 선택을 해제했습니다.`)
+  }
 }
 
 async function changeWeek(amount) {
-  viewWeekStart.value = addDays(
-    viewWeekStart.value,
-    amount * 7,
-  )
+  viewWeekStart.value = addDays(viewWeekStart.value, amount * 7)
 
   await loadSchedule()
 }
 
 async function goThisWeek() {
-  viewWeekStart.value = getMonday(
-    new Date(),
-  )
+  viewWeekStart.value = getMonday(new Date())
 
   await loadSchedule()
 }
@@ -257,130 +248,84 @@ onMounted(() => {
       <div>
         <h2>테니스</h2>
 
-        <p>
-          날짜별로 테니스에 갈지 체크해요.
-        </p>
+        <p>날짜별 테니스 계획을 선택해요.</p>
       </div>
 
-      <span class="summary">
-        이번 주 {{ goingCount }}일
-      </span>
+      <div class="summary-list">
+        <span class="summary go"> 가자 {{ goCount }}일 </span>
+
+        <span class="summary rest"> 쉬자 {{ restCount }}일 </span>
+
+        <span class="summary rain"> 비 {{ rainCount }}일 </span>
+      </div>
     </header>
 
     <div class="week-navigation">
-      <button
-        type="button"
-        class="week-button"
-        @click="changeWeek(-1)"
-      >
-        이전 주
-      </button>
+      <button type="button" class="week-button" @click="changeWeek(-1)">이전 주</button>
 
       <div class="week-title">
         {{ weekTitle }}
 
         <span>
-          {{
-            isCurrentWeek
-              ? '이번 주'
-              : '저장된 주간 기록'
-          }}
+          {{ isCurrentWeek ? '이번 주' : '저장된 주간 기록' }}
         </span>
       </div>
 
-      <button
-        type="button"
-        class="week-button"
-        @click="changeWeek(1)"
-      >
-        다음 주
-      </button>
+      <button type="button" class="week-button" @click="changeWeek(1)">다음 주</button>
     </div>
 
-    <button
-      v-if="!isCurrentWeek"
-      type="button"
-      class="this-week-button"
-      @click="goThisWeek"
-    >
+    <button v-if="!isCurrentWeek" type="button" class="this-week-button" @click="goThisWeek">
       이번 주로 돌아가기
     </button>
 
-    <p
-      class="sync-status"
-      :class="{ error: isError }"
-    >
+    <p class="sync-status" :class="{ error: isError }">
       {{ statusMessage }}
     </p>
 
-    <div
-      v-if="loading"
-      class="loading"
-    >
-      테니스 일정을 불러오는 중...
-    </div>
+    <div v-if="loading" class="loading">테니스 일정을 불러오는 중...</div>
 
-    <div
-      v-else
-      class="day-grid"
-    >
+    <div v-else class="day-grid">
       <article
         v-for="dayItem in dayCards"
         :key="dayItem.dateKey"
         class="day-card"
-        :class="{
-          today: dayItem.isToday,
-          going: dayItem.isGoing,
-        }"
+        :class="[
+          dayItem.status,
+          {
+            today: dayItem.isToday,
+          },
+        ]"
       >
         <header>
-          <strong>
-            {{ dayItem.day }}요일
-          </strong>
+          <div class="day-title">
+            <strong> {{ dayItem.day }}요일 </strong>
 
-          <span>
-            {{ formatMonthDay(dayItem.date) }}
-          </span>
+            <span>
+              {{ formatMonthDay(dayItem.date) }}
+            </span>
+          </div>
 
-          <small v-if="dayItem.isToday">
-            오늘
-          </small>
+          <small v-if="dayItem.isToday"> 오늘 </small>
         </header>
 
-        <div
-          class="tennis-status"
-          :class="{
-            going: dayItem.isGoing,
-          }"
-        >
-         
-
-          <strong>
-            {{
-              dayItem.isGoing
-                ? '🎾 간다'
-                : '🎾 안 간다'
-            }}
-          </strong>
+        <div class="status-buttons">
+          <button
+            v-for="option in statusOptions"
+            :key="option.value"
+            type="button"
+            class="status-button"
+            :class="[
+              option.value,
+              {
+                active: dayItem.status === option.value,
+              },
+            ]"
+            :disabled="updatingDate === dayItem.dateKey"
+            @click="selectTennisStatus(dayItem, option.value)"
+          >
+            {{ option.label }}
+          </button>
         </div>
-
-        <button
-          type="button"
-          class="toggle-button"
-          :class="{
-            active: dayItem.isGoing,
-          }"
-          :disabled="
-            updatingDate === dayItem.dateKey
-          "
-          @click="toggleTennis(dayItem)"
-        >
-          {{
-            dayItem.isGoing
-              ? '🎾 안 가기로 변경'
-              : '🎾 테니스 간다'
-          }}
-        </button>
       </article>
     </div>
   </section>
@@ -390,8 +335,16 @@ onMounted(() => {
 .tennis-view {
   --pink: #ff8fa3;
   --pink-dark: #e56b82;
+
   --green: #5d8f68;
   --green-light: #edf8ef;
+
+  --rest: #8a7895;
+  --rest-light: #f1ebf4;
+
+  --rain: #6688aa;
+  --rain-light: #eaf2f9;
+
   --title: #123847;
   --muted: #6c7b83;
   --stamp: #b23a2e;
@@ -418,13 +371,33 @@ onMounted(() => {
   font-size: 13px;
 }
 
+.summary-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .summary {
   border-radius: 999px;
   padding: 6px 10px;
-  background: white;
-  color: var(--green);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
+}
+
+.summary.go {
+  background: var(--green-light);
+  color: var(--green);
+}
+
+.summary.rest {
+  background: var(--rest-light);
+  color: var(--rest);
+}
+
+.summary.rain {
+  background: var(--rain-light);
+  color: var(--rain);
 }
 
 .week-navigation {
@@ -497,10 +470,7 @@ onMounted(() => {
 
 .day-grid {
   display: grid;
-  grid-template-columns: repeat(
-    4,
-    minmax(0, 1fr)
-  );
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 11px;
 }
 
@@ -510,6 +480,9 @@ onMounted(() => {
   border-radius: 16px;
   background: white;
   box-shadow: 0 3px 10px rgb(0 0 0 / 8%);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .day-card.today {
@@ -517,22 +490,40 @@ onMounted(() => {
   outline-offset: 2px;
 }
 
-.day-card.going {
+.day-card.go {
   border-color: rgb(93 143 104 / 35%);
   background: var(--green-light);
 }
 
-.day-card header {
-  text-align: center;
+.day-card.rest {
+  border-color: rgb(138 120 149 / 30%);
+  background: var(--rest-light);
 }
 
-.day-card header strong {
+.day-card.rain {
+  border-color: rgb(102 136 170 / 35%);
+  background: var(--rain-light);
+}
+
+.day-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 15px;
+}
+
+.day-title {
+  text-align: left;
+}
+
+.day-title strong {
   display: block;
   color: var(--title);
   font-size: 15px;
 }
 
-.day-card header span {
+.day-title span {
   display: block;
   margin-top: 2px;
   color: var(--muted);
@@ -540,66 +531,64 @@ onMounted(() => {
 }
 
 .day-card header small {
-  display: block;
-  margin-top: 3px;
+  border-radius: 999px;
+  padding: 3px 6px;
+  background: #ffe3e9;
   color: var(--pink-dark);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
 }
 
-.tennis-status {
-  margin: 16px 0;
-  padding: 15px 5px;
-  border-radius: 12px;
-  background: #f7f3f8;
-  color: var(--muted);
-  text-align: center;
+.status-buttons {
+  display: grid;
+  gap: 7px;
 }
 
-.tennis-status.going {
-  background: white;
-  color: var(--green);
-}
-
-.tennis-icon {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 29px;
-}
-
-.tennis-status strong {
-  font-size: 14px;
-}
-
-.toggle-button {
+.status-button {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 9px;
-  padding: 9px 5px;
+  padding: 10px 5px;
   background: white;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
 }
 
-.toggle-button.active {
+.status-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.status-button.go.active {
   border-color: var(--green);
   background: var(--green);
   color: white;
 }
 
-.toggle-button:disabled {
+.status-button.rest.active {
+  border-color: var(--rest);
+  background: var(--rest);
+  color: white;
+}
+
+.status-button.rain.active {
+  border-color: var(--rain);
+  background: var(--rain);
+  color: white;
+}
+
+.status-button:disabled {
   cursor: wait;
   opacity: 0.5;
 }
 
 @media (max-width: 700px) {
   .day-grid {
-    grid-template-columns: repeat(
-      2,
-      minmax(0, 1fr)
-    );
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -608,9 +597,12 @@ onMounted(() => {
     align-items: flex-start;
   }
 
+  .summary-list {
+    max-width: 160px;
+  }
+
   .week-navigation {
-    grid-template-columns:
-      68px 1fr 68px;
+    grid-template-columns: 68px 1fr 68px;
     gap: 5px;
     padding: 8px;
   }

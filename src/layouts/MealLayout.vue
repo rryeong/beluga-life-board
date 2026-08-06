@@ -6,25 +6,15 @@
     </header>
 
     <nav class="sub-navigation">
-      <RouterLink to="/meal/weekly-menu">
-        이번 주 메뉴
-      </RouterLink>
+      <RouterLink to="/meal/weekly-menu"> 이번 주 메뉴 </RouterLink>
 
-      <RouterLink to="/meal/fridge">
-        냉장고 속 재료
-      </RouterLink>
+      <RouterLink to="/meal/fridge"> 냉장고 속 재료 </RouterLink>
 
-      <RouterLink to="/meal/freezer">
-        냉동고 속 재료
-      </RouterLink>
+      <RouterLink to="/meal/freezer"> 냉동고 속 재료 </RouterLink>
 
-      <RouterLink to="/meal/meal-prep">
-        밀프렙
-      </RouterLink>
+      <RouterLink to="/meal/meal-prep"> 밀프렙 </RouterLink>
 
-      <RouterLink to="/meal/wishlist">
-        먹고 싶은 메뉴
-      </RouterLink>
+      <RouterLink to="/meal/wishlist"> 먹고 싶은 메뉴 </RouterLink>
     </nav>
 
     <RouterView />

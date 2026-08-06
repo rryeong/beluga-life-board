@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { supabase, JIBBAP_TABLE } from '@/lib/supabase'
 
-const currentUser = ref('벨루')
+const OWNER_NAME = '벨루'
 const wishes = ref([])
 
 const wishName = ref('')
@@ -24,10 +24,7 @@ function rowToItem(row) {
     id: row.id,
     name: row.name,
     rating: Number(row.rating || 0),
-    addedBy: row.added_by || '벨루',
-    createdAt: row.created_at
-      ? new Date(row.created_at).getTime()
-      : 0,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : 0,
   }
 }
 
@@ -67,17 +64,11 @@ async function loadWishes() {
 
   if (error) {
     console.error(error)
-
-    setStatus(
-      `불러오기 실패: ${error.message}`,
-      true,
-    )
-
+    setStatus(`불러오기 실패: ${error.message}`, true)
     return
   }
 
   wishes.value = (data || []).map(rowToItem)
-
   setStatus('공유 데이터와 동기화됨')
 }
 
@@ -93,44 +84,30 @@ async function addWish() {
     category: 'wish',
     name,
     memo: '',
-    added_by: currentUser.value,
+    added_by: OWNER_NAME,
     done: false,
     rating: 0,
   }
 
-  const { data, error } = await supabase
-    .from(JIBBAP_TABLE)
-    .insert(row)
-    .select()
-    .single()
+  const { data, error } = await supabase.from(JIBBAP_TABLE).insert(row).select().single()
 
   saving.value = false
 
   if (error) {
     console.error(error)
-
-    setStatus(
-      `추가 실패: ${error.message}`,
-      true,
-    )
-
+    setStatus(`추가 실패: ${error.message}`, true)
     return
   }
 
   wishes.value.push(rowToItem(data))
   wishName.value = ''
-
   setStatus('먹고 싶은 메뉴를 추가했습니다.')
 }
 
 async function setWishRating(item, ratingValue) {
   if (updatingId.value) return
 
-  const nextRating =
-    item.rating === ratingValue
-      ? 0
-      : ratingValue
-
+  const nextRating = item.rating === ratingValue ? 0 : ratingValue
   updatingId.value = item.id
 
   const { error } = await supabase
@@ -145,50 +122,28 @@ async function setWishRating(item, ratingValue) {
 
   if (error) {
     console.error(error)
-
-    setStatus(
-      `별점 저장 실패: ${error.message}`,
-      true,
-    )
-
+    setStatus(`별점 저장 실패: ${error.message}`, true)
     return
   }
 
   item.rating = nextRating
-
-  setStatus(
-    nextRating === 0
-      ? '별점을 초기화했습니다.'
-      : `${nextRating}점으로 저장했습니다.`,
-  )
+  setStatus(nextRating === 0 ? '별점을 초기화했습니다.' : `${nextRating}점으로 저장했습니다.`)
 }
 
 async function removeWish(item) {
-  const shouldDelete = window.confirm(
-    `"${item.name}" 메뉴를 삭제할까요?`,
-  )
+  const shouldDelete = window.confirm(`"${item.name}" 메뉴를 삭제할까요?`)
 
   if (!shouldDelete) return
 
-  const { error } = await supabase
-    .from(JIBBAP_TABLE)
-    .delete()
-    .eq('id', item.id)
+  const { error } = await supabase.from(JIBBAP_TABLE).delete().eq('id', item.id)
 
   if (error) {
     console.error(error)
-
-    setStatus(
-      `삭제 실패: ${error.message}`,
-      true,
-    )
-
+    setStatus(`삭제 실패: ${error.message}`, true)
     return
   }
 
-  wishes.value = wishes.value.filter(
-    (target) => target.id !== item.id,
-  )
+  wishes.value = wishes.value.filter((target) => target.id !== item.id)
 
   setStatus('메뉴를 삭제했습니다.')
 }
@@ -211,64 +166,16 @@ onMounted(() => {
       </span>
     </header>
 
-    <div class="user-toggle">
-      <span class="toggle-label">
-        작성자
-      </span>
-
-      <button
-        type="button"
-        class="user-button"
-        :class="{
-          'active-me': currentUser === '벨루',
-        }"
-        @click="currentUser = '벨루'"
-      >
-        벨루
-      </button>
-
-      <button
-        type="button"
-        class="user-button"
-        :class="{
-          'active-husband': currentUser === '오빠',
-        }"
-        @click="currentUser = '오빠'"
-      >
-        오빠
-      </button>
-    </div>
-
-    <p
-      class="sync-status"
-      :class="{ error: isError }"
-    >
+    <p class="sync-status" :class="{ error: isError }">
       {{ statusMessage }}
     </p>
 
-    <div
-      v-if="loading"
-      class="loading"
-    >
-      메뉴 후보를 불러오는 중...
-    </div>
+    <div v-if="loading" class="loading">메뉴 후보를 불러오는 중...</div>
 
-    <div
-      v-else-if="sortedWishes.length === 0"
-      class="empty"
-    >
-      먹고 싶은 메뉴를 적어보세요.
-    </div>
+    <div v-else-if="sortedWishes.length === 0" class="empty">먹고 싶은 메뉴를 적어보세요.</div>
 
-    <div
-      v-else
-      class="wish-list"
-    >
-      <article
-        v-for="item in sortedWishes"
-        :key="item.id"
-        class="wish-row"
-      >
+    <div v-else class="wish-list">
+      <article v-for="item in sortedWishes" :key="item.id" class="wish-row">
         <div class="wish-body">
           <strong class="wish-name">
             {{ item.name }}
@@ -292,16 +199,6 @@ onMounted(() => {
           </div>
         </div>
 
-        <span
-          class="added-by"
-          :class="{
-            me: item.addedBy === '벨루',
-            husband: item.addedBy === '오빠',
-          }"
-        >
-          {{ item.addedBy }}
-        </span>
-
         <button
           type="button"
           class="delete-button"
@@ -313,24 +210,10 @@ onMounted(() => {
       </article>
     </div>
 
-    <form
-      class="add-form"
-      @submit.prevent="addWish"
-    >
-      <input
-        v-model="wishName"
-        type="text"
-        maxlength="40"
-        placeholder="예: 마라탕, 파스타"
-      />
+    <form class="add-form" @submit.prevent="addWish">
+      <input v-model="wishName" type="text" maxlength="40" placeholder="예: 마라탕, 파스타" />
 
-      <button
-        type="submit"
-        class="add-button"
-        :disabled="
-          saving || !wishName.trim()
-        "
-      >
+      <button type="submit" class="add-button" :disabled="saving || !wishName.trim()">
         {{ saving ? '저장 중' : '추가' }}
       </button>
     </form>
@@ -343,8 +226,6 @@ onMounted(() => {
   --ink-soft: #5b6b73;
   --pink: #ff8fa3;
   --pink-dark: #e56b82;
-  --teal: #3f7a6d;
-  --coral: #d5674a;
   --stamp: #b23a2e;
   --title: #123847;
   --muted: #6c7b83;
@@ -374,44 +255,6 @@ onMounted(() => {
 .count-text {
   color: var(--muted);
   font-size: 13px;
-}
-
-.user-toggle {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  width: fit-content;
-  margin-bottom: 14px;
-  padding: 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: white;
-}
-
-.toggle-label {
-  padding-left: 6px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.user-button {
-  border: 0;
-  border-radius: 999px;
-  padding: 7px 14px;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.user-button.active-me {
-  background: var(--coral);
-  color: white;
-}
-
-.user-button.active-husband {
-  background: var(--teal);
-  color: white;
 }
 
 .sync-status {
@@ -496,24 +339,6 @@ onMounted(() => {
   opacity: 0.6;
 }
 
-.added-by {
-  flex: none;
-  border-radius: 999px;
-  padding: 4px 8px;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.added-by.me {
-  background: rgb(213 103 74 / 14%);
-  color: var(--coral);
-}
-
-.added-by.husband {
-  background: rgb(63 122 109 / 14%);
-  color: var(--teal);
-}
-
 .delete-button {
   flex: none;
   border: 0;
@@ -573,19 +398,9 @@ onMounted(() => {
     align-items: flex-start;
   }
 
-  .user-toggle {
-    width: 100%;
-    justify-content: center;
-  }
-
   .wish-row {
     gap: 8px;
     padding: 12px;
-  }
-
-  .added-by {
-    padding: 3px 6px;
-    font-size: 10px;
   }
 }
 </style>

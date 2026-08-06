@@ -6,13 +6,9 @@
     </header>
 
     <nav class="sub-navigation">
-      <RouterLink to="/bus/commute">
-        출근버스
-      </RouterLink>
+      <RouterLink to="/bus/commute"> 출근버스 </RouterLink>
 
-      <RouterLink to="/bus/return">
-        퇴근버스
-      </RouterLink>
+      <RouterLink to="/bus/return"> 퇴근버스 </RouterLink>
     </nav>
 
     <RouterView />

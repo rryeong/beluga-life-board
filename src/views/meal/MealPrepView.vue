@@ -2,7 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { supabase, JIBBAP_TABLE } from '@/lib/supabase'
 
-const currentUser = ref('벨루')
+const OWNER_NAME = '벨루'
+
 const mealPrepItems = ref([])
 
 const mealPrepName = ref('')
@@ -25,29 +26,27 @@ function rowToItem(row) {
     id: row.id,
     name: row.name,
     quantity: Number(row.quantity ?? 1),
-    addedBy: row.added_by || '벨루',
     done: Boolean(row.done),
-    mealDate: row.meal_date || null,
-    createdAt: row.created_at
-      ? new Date(row.created_at).getTime()
-      : 0,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : 0,
   }
 }
 
 const sortedItems = computed(() => {
   return [...mealPrepItems.value].sort((a, b) => {
-    if (a.quantity === 0 && b.quantity !== 0) return 1
-    if (a.quantity !== 0 && b.quantity === 0) return -1
+    if (a.quantity === 0 && b.quantity !== 0) {
+      return 1
+    }
+
+    if (a.quantity !== 0 && b.quantity === 0) {
+      return -1
+    }
 
     return b.createdAt - a.createdAt
   })
 })
 
 const totalQuantity = computed(() => {
-  return mealPrepItems.value.reduce(
-    (sum, item) => sum + item.quantity,
-    0,
-  )
+  return mealPrepItems.value.reduce((sum, item) => sum + item.quantity, 0)
 })
 
 const itemCountText = computed(() => {
@@ -55,7 +54,7 @@ const itemCountText = computed(() => {
     return '등록된 밀프렙 없음'
   }
 
-  return `${mealPrepItems.value.length}종 · 총 ${totalQuantity.value}개`
+  return `${mealPrepItems.value.length}종 · ` + `총 ${totalQuantity.value}개`
 })
 
 async function loadMealPrepItems() {
@@ -76,10 +75,7 @@ async function loadMealPrepItems() {
   if (error) {
     console.error(error)
 
-    setStatus(
-      `불러오기 실패: ${error.message}`,
-      true,
-    )
+    setStatus(`불러오기 실패: ${error.message}`, true)
 
     return
   }
@@ -93,12 +89,7 @@ async function addMealPrep() {
   const name = mealPrepName.value.trim()
   const quantity = Number(initialQuantity.value)
 
-  if (
-    !name ||
-    saving.value ||
-    !Number.isInteger(quantity) ||
-    quantity < 1
-  ) {
+  if (!name || saving.value || !Number.isInteger(quantity) || quantity < 1) {
     return
   }
 
@@ -110,26 +101,20 @@ async function addMealPrep() {
     name,
     menu_type: '밀프렙',
     quantity,
-    added_by: currentUser.value,
+    meal_date: null,
+    added_by: OWNER_NAME,
     done: false,
     rating: 0,
   }
 
-  const { data, error } = await supabase
-    .from(JIBBAP_TABLE)
-    .insert(row)
-    .select()
-    .single()
+  const { data, error } = await supabase.from(JIBBAP_TABLE).insert(row).select().single()
 
   saving.value = false
 
   if (error) {
     console.error(error)
 
-    setStatus(
-      `추가 실패: ${error.message}`,
-      true,
-    )
+    setStatus(`추가 실패: ${error.message}`, true)
 
     return
   }
@@ -145,10 +130,7 @@ async function addMealPrep() {
 async function changeQuantity(item, amount) {
   if (updatingId.value) return
 
-  const nextQuantity = Math.max(
-    0,
-    item.quantity + amount,
-  )
+  const nextQuantity = Math.max(0, item.quantity + amount)
 
   if (nextQuantity === item.quantity) return
 
@@ -168,10 +150,7 @@ async function changeQuantity(item, amount) {
   if (error) {
     console.error(error)
 
-    setStatus(
-      `수량 변경 실패: ${error.message}`,
-      true,
-    )
+    setStatus(`수량 변경 실패: ${error.message}`, true)
 
     return
   }
@@ -187,31 +166,21 @@ async function changeQuantity(item, amount) {
 }
 
 async function removeMealPrep(item) {
-  const shouldDelete = window.confirm(
-    `"${item.name}" 밀프렙을 삭제할까요?`,
-  )
+  const shouldDelete = window.confirm(`"${item.name}" 밀프렙을 삭제할까요?`)
 
   if (!shouldDelete) return
 
-  const { error } = await supabase
-    .from(JIBBAP_TABLE)
-    .delete()
-    .eq('id', item.id)
+  const { error } = await supabase.from(JIBBAP_TABLE).delete().eq('id', item.id)
 
   if (error) {
     console.error(error)
 
-    setStatus(
-      `삭제 실패: ${error.message}`,
-      true,
-    )
+    setStatus(`삭제 실패: ${error.message}`, true)
 
     return
   }
 
-  mealPrepItems.value = mealPrepItems.value.filter(
-    (target) => target.id !== item.id,
-  )
+  mealPrepItems.value = mealPrepItems.value.filter((target) => target.id !== item.id)
 
   setStatus('밀프렙을 삭제했습니다.')
 }
@@ -226,6 +195,7 @@ onMounted(() => {
     <header class="section-header">
       <div>
         <h3>밀프렙</h3>
+
         <p>미리 준비한 음식의 남은 개수를 관리해요.</p>
       </div>
 
@@ -234,59 +204,15 @@ onMounted(() => {
       </span>
     </header>
 
-    <div class="user-toggle">
-      <span class="toggle-label">
-        작성자
-      </span>
-
-      <button
-        type="button"
-        class="user-button"
-        :class="{
-          'active-me': currentUser === '벨루',
-        }"
-        @click="currentUser = '벨루'"
-      >
-        벨루
-      </button>
-
-      <button
-        type="button"
-        class="user-button"
-        :class="{
-          'active-husband': currentUser === '오빠',
-        }"
-        @click="currentUser = '오빠'"
-      >
-        오빠
-      </button>
-    </div>
-
-    <p
-      class="sync-status"
-      :class="{ error: isError }"
-    >
+    <p class="sync-status" :class="{ error: isError }">
       {{ statusMessage }}
     </p>
 
-    <div
-      v-if="loading"
-      class="loading"
-    >
-      밀프렙을 불러오는 중...
-    </div>
+    <div v-if="loading" class="loading">밀프렙을 불러오는 중...</div>
 
-    <div
-      v-else-if="sortedItems.length === 0"
-      class="empty"
-    >
-      등록된 밀프렙이 없어요.
-    </div>
+    <div v-else-if="sortedItems.length === 0" class="empty">등록된 밀프렙이 없어요.</div>
 
-    <div
-      v-else
-      class="meal-prep-grid"
-    >
+    <div v-else class="meal-prep-grid">
       <article
         v-for="item in sortedItems"
         :key="item.id"
@@ -295,48 +221,28 @@ onMounted(() => {
           'empty-card': item.quantity === 0,
         }"
       >
+        <button
+          type="button"
+          class="delete-button"
+          aria-label="밀프렙 삭제"
+          @click="removeMealPrep(item)"
+        >
+          ×
+        </button>
+
         <div class="card-top">
-          <div>
-            <strong class="meal-prep-name">
-              {{ item.name }}
-            </strong>
-
-            <span
-              class="added-by"
-              :class="{
-                me: item.addedBy === '벨루',
-                husband: item.addedBy === '오빠',
-              }"
-            >
-              {{ item.addedBy }}
-            </span>
-          </div>
-
-          <button
-            type="button"
-            class="delete-button"
-            aria-label="밀프렙 삭제"
-            @click="removeMealPrep(item)"
-          >
-            ×
-          </button>
+          <strong class="meal-prep-name">
+            {{ item.name }}
+          </strong>
         </div>
 
-        <p
-          v-if="item.quantity === 0"
-          class="finished-label"
-        >
-          모두 먹었어요
-        </p>
+        <p v-if="item.quantity === 0" class="finished-label">모두 먹었어요</p>
 
         <div class="quantity-control">
           <button
             type="button"
             class="quantity-button"
-            :disabled="
-              item.quantity <= 0 ||
-              updatingId === item.id
-            "
+            :disabled="item.quantity <= 0 || updatingId === item.id"
             aria-label="수량 줄이기"
             @click="changeQuantity(item, -1)"
           >
@@ -344,8 +250,11 @@ onMounted(() => {
           </button>
 
           <div class="quantity-display">
-            <strong>{{ item.quantity }}</strong>
-            <span>개 남음</span>
+            <strong>
+              {{ item.quantity }}
+            </strong>
+
+            <span> 개 남음 </span>
           </div>
 
           <button
@@ -361,36 +270,19 @@ onMounted(() => {
       </article>
     </div>
 
-    <form
-      class="add-form"
-      @submit.prevent="addMealPrep"
-    >
-      <input
-        v-model="mealPrepName"
-        type="text"
-        maxlength="40"
-        placeholder="예: 닭가슴살 볶음밥"
-      />
+    <form class="add-form" @submit.prevent="addMealPrep">
+      <input v-model="mealPrepName" type="text" maxlength="40" placeholder="예: 닭가슴살 볶음밥" />
 
       <label class="quantity-input">
-        <span>처음 수량</span>
+        <span> 처음 수량 </span>
 
-        <input
-          v-model.number="initialQuantity"
-          type="number"
-          min="1"
-          max="99"
-        />
+        <input v-model.number="initialQuantity" type="number" min="1" max="99" />
       </label>
 
       <button
         type="submit"
         class="add-button"
-        :disabled="
-          saving ||
-          !mealPrepName.trim() ||
-          initialQuantity < 1
-        "
+        :disabled="saving || !mealPrepName.trim() || initialQuantity < 1"
       >
         {{ saving ? '저장 중' : '추가' }}
       </button>
@@ -402,14 +294,13 @@ onMounted(() => {
 .meal-prep-view {
   --ink: #1e2a2e;
   --ink-soft: #5b6b73;
-  --pink: #ff8fa3;
-  --pink-dark: #e56b82;
-  --teal: #3f7a6d;
-  --coral: #d5674a;
+  --pink: #ff9eb1;
+  --pink-dark: #e98298;
+  --lavender-dark: #74668b;
   --stamp: #b23a2e;
   --title: #123847;
   --muted: #6c7b83;
-  --line: rgb(23 58 71 / 14%);
+  --line: rgb(23 58 71 / 10%);
 }
 
 .section-header {
@@ -438,44 +329,6 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-.user-toggle {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  width: fit-content;
-  margin-bottom: 14px;
-  padding: 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: white;
-}
-
-.toggle-label {
-  padding-left: 6px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.user-button {
-  border: 0;
-  border-radius: 999px;
-  padding: 7px 14px;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.user-button.active-me {
-  background: var(--coral);
-  color: white;
-}
-
-.user-button.active-husband {
-  background: var(--teal);
-  color: white;
-}
-
 .sync-status {
   min-height: 18px;
   margin: 0 0 10px;
@@ -499,106 +352,142 @@ onMounted(() => {
   padding: 24px 16px;
   border: 1px dashed var(--line);
   border-radius: 12px;
-  background: white;
+  background: rgb(255 255 255 / 68%);
   color: var(--muted);
   text-align: center;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .meal-prep-grid {
   display: grid;
-  grid-template-columns: repeat(
-    3,
-    minmax(0, 1fr)
-  );
-  gap: 12px;
-  margin-bottom: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
 }
 
 .meal-prep-card {
-  padding: 15px;
-  border: 1px solid #f0e3ed;
-  border-radius: 16px;
-  background: white;
-  box-shadow: 0 3px 9px rgb(0 0 0 / 8%);
+  position: relative;
+  display: flex;
+  min-height: 190px;
+  flex-direction: column;
+  padding: 17px 16px 16px;
+  border: 1px solid rgb(255 255 255 / 75%);
+  border-radius: 18px;
+  background: rgb(255 255 255 / 54%);
+  box-shadow:
+    0 4px 12px rgb(0 0 0 / 5%),
+    inset 0 1px 0 rgb(255 255 255 / 78%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.meal-prep-card:hover {
+  transform: translateY(-3px);
+  background: rgb(255 255 255 / 72%);
+  box-shadow:
+    0 8px 18px rgb(0 0 0 / 7%),
+    inset 0 1px 0 rgb(255 255 255 / 90%);
 }
 
 .meal-prep-card.empty-card {
-  opacity: 0.58;
+  opacity: 0.52;
 }
 
 .card-top {
   display: flex;
+  min-height: 74px;
+  flex-direction: column;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
+  padding-right: 30px;
 }
 
 .meal-prep-name {
   display: block;
   color: var(--ink);
-  font-size: 15px;
+  font-size: 16px;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
-.added-by {
-  display: inline-block;
-  margin-top: 7px;
-  border-radius: 999px;
-  padding: 3px 7px;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.added-by.me {
-  background: rgb(213 103 74 / 14%);
-  color: var(--coral);
-}
-
-.added-by.husband {
-  background: rgb(63 122 109 / 14%);
-  color: var(--teal);
-}
-
 .delete-button {
-  border: 0;
-  padding: 2px;
-  background: transparent;
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgb(255 255 255 / 65%);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 44%);
   color: var(--ink-soft);
   font-size: 18px;
   cursor: pointer;
-  opacity: 0.55;
+  opacity: 0.65;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.delete-button:hover {
+  background: rgb(255 255 255 / 85%);
+  color: var(--stamp);
+  opacity: 1;
 }
 
 .finished-label {
-  margin: 10px 0 0;
+  width: fit-content;
+  margin: 4px 0 0;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgb(178 58 46 / 8%);
   color: var(--stamp);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
 }
 
 .quantity-control {
   display: grid;
-  grid-template-columns: 38px 1fr 38px;
+  grid-template-columns: 40px 1fr 40px;
   align-items: center;
-  gap: 8px;
-  margin-top: 18px;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 16px;
 }
 
 .quantity-button {
-  width: 38px;
-  height: 38px;
-  border: 0;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgb(255 255 255 / 72%);
   border-radius: 50%;
-  background: #f2e5f7;
-  color: #553567;
+  background: rgb(255 255 255 / 58%);
+  color: var(--lavender-dark);
+  box-shadow:
+    0 3px 8px rgb(0 0 0 / 4%),
+    inset 0 1px 0 rgb(255 255 255 / 85%);
   font-size: 20px;
   font-weight: 700;
   cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+}
+
+.quantity-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: rgb(255 255 255 / 86%);
+}
+
+.quantity-button:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .quantity-button:disabled {
   cursor: not-allowed;
-  opacity: 0.35;
+  opacity: 0.3;
 }
 
 .quantity-display {
@@ -608,12 +497,13 @@ onMounted(() => {
 .quantity-display strong {
   display: block;
   color: var(--title);
-  font-size: 25px;
+  font-size: 27px;
+  line-height: 1;
 }
 
 .quantity-display span {
   display: block;
-  margin-top: 1px;
+  margin-top: 5px;
   color: var(--muted);
   font-size: 10px;
 }
@@ -623,9 +513,11 @@ onMounted(() => {
   gap: 8px;
   flex-wrap: wrap;
   padding: 12px;
-  border: 1px solid var(--line);
+  border: 1px solid rgb(255 255 255 / 72%);
   border-radius: 12px;
-  background: white;
+  background: rgb(255 255 255 / 58%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .add-form > input {
@@ -634,11 +526,16 @@ onMounted(() => {
 }
 
 .add-form input {
-  border: 1px solid #eadfe8;
+  border: 1px solid rgb(255 255 255 / 82%);
   border-radius: 8px;
   padding: 11px 12px;
-  background: white;
+  background: rgb(255 255 255 / 72%);
   color: var(--ink);
+}
+
+.add-form input:focus {
+  border-color: rgb(200 185 221 / 68%);
+  outline: 3px solid rgb(200 185 221 / 16%);
 }
 
 .quantity-input {
@@ -674,21 +571,38 @@ onMounted(() => {
 
 @media (max-width: 700px) {
   .meal-prep-grid {
-    grid-template-columns: repeat(
-      2,
-      minmax(0, 1fr)
-    );
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .meal-prep-card {
+    min-height: 180px;
+    padding: 14px 13px 13px;
+    border-radius: 14px;
+  }
+
+  .meal-prep-name {
+    font-size: 14px;
+  }
+
+  .quantity-control {
+    grid-template-columns: 36px 1fr 36px;
+    gap: 7px;
+  }
+
+  .quantity-button {
+    width: 36px;
+    height: 36px;
+  }
+
+  .quantity-display strong {
+    font-size: 24px;
   }
 }
 
 @media (max-width: 480px) {
   .section-header {
     align-items: flex-start;
-  }
-
-  .user-toggle {
-    width: 100%;
-    justify-content: center;
   }
 
   .add-form {
