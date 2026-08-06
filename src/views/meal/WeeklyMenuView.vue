@@ -429,7 +429,7 @@ onBeforeUnmount(() => {
       <div>
         <h3>이번 주 메뉴</h3>
 
-        <p>요일별 집밥과 밀프렙을 관리해요.</p>
+        <p>요일별 집밥, 밀프렙, 외식과 배달 메뉴를 관리해요.</p>
       </div>
 
       <span class="menu-count">
@@ -534,6 +534,8 @@ onBeforeUnmount(() => {
                   class="menu-badge"
                   :class="{
                     'meal-prep': menu.type === '밀프렙',
+                    'dining-out': menu.type === '외식',
+                    delivery: menu.type === '배달',
                   }"
                 >
                   {{ menu.type }}
@@ -565,8 +567,9 @@ onBeforeUnmount(() => {
 
       <select v-model="menuType">
         <option value="집밥">집밥</option>
-
         <option value="밀프렙">밀프렙</option>
+        <option value="외식">외식</option>
+        <option value="배달">배달</option>
       </select>
 
       <button type="submit" class="add-button" :disabled="saving || !menuName.trim()">
@@ -930,6 +933,16 @@ onBeforeUnmount(() => {
 .menu-badge.meal-prep {
   background: rgb(255 143 163 / 20%);
   color: var(--pink-dark);
+}
+
+.menu-badge.dining-out {
+  background: rgb(213 103 74 / 16%);
+  color: var(--coral);
+}
+
+.menu-badge.delivery {
+  background: rgb(111 86 145 / 14%);
+  color: #6f5691;
 }
 
 .day-column.today .delete-button {
