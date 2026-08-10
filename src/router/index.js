@@ -19,6 +19,12 @@ import OppaCommuteView from '@/views/commute/OppaCommuteView.vue'
 
 import TennisView from '@/views/tennis/TennisView.vue'
 
+import DateLayout from '@/views/date/DateLayout.vue'
+import DateWishlistView from '@/views/date/DateWishlistView.vue'
+import DatePlacesView from '@/views/date/DatePlacesView.vue'
+import DateScheduleView from '@/views/date/DateScheduleView.vue'
+import DateMemoriesView from '@/views/date/DateMemoriesView.vue'
+
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
 
@@ -109,6 +115,35 @@ const router = createRouter({
       path: '/tennis',
       name: 'tennis',
       component: TennisView,
+    },
+
+    {
+      path: '/date',
+      component: DateLayout,
+      redirect: '/date/wishlist',
+
+      children: [
+        {
+          path: 'wishlist',
+          name: 'date-wishlist',
+          component: DateWishlistView,
+        },
+        {
+          path: 'places',
+          name: 'date-places',
+          component: DatePlacesView,
+        },
+        {
+          path: 'schedule',
+          name: 'date-schedule',
+          component: DateScheduleView,
+        },
+        {
+          path: 'memories',
+          name: 'date-memories',
+          component: DateMemoriesView,
+        },
+      ],
     },
 
     {
