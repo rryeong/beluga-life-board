@@ -1,21 +1,39 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+
 import { supabase, JIBBAP_TABLE } from '@/lib/supabase'
 
 const DAYS = ['월', '화', '수', '목', '금', '토', '일']
 
 const OWNER_NAME = '벨루'
+
 const menus = ref([])
+
 const selectedMenuId = ref(null)
+const selectedCandidateId = ref(null)
+
 const selectedDay = ref(null)
+
 const viewWeekStart = ref(getMonday(new Date()))
+
 const calendarRef = ref(null)
 
+/*
+ * 특정 날짜에 바로 추가하는 메뉴
+ */
 const menuName = ref('')
 const menuType = ref('집밥')
 
+/*
+ * 가능한 메뉴
+ */
+const candidateName = ref('')
+const candidateType = ref('집밥')
+
 const loading = ref(true)
 const saving = ref(false)
+const candidateSaving = ref(false)
+
 const statusMessage = ref('')
 const isError = ref(false)
 
@@ -58,7 +76,7 @@ function parseDateKey(key) {
 }
 
 function formatMonthDay(date) {
-  return `${date.getMonth() + 1}/${date.getDate()}`
+  return `${date.getMonth() + 1}/` + `${date.getDate()}`
 }
 
 function setStatus(message, error = false) {
@@ -85,17 +103,34 @@ function getTodayDay() {
 function rowToItem(row) {
   return {
     id: row.id,
+
     category: row.category,
+
     name: row.name,
+
     memo: row.memo || '',
+
     type: row.menu_type || '집밥',
+
     mealDate: row.meal_date || null,
+
     day: row.meal_date ? DAYS[(parseDateKey(row.meal_date).getDay() + 6) % 7] : null,
+
     done: Boolean(row.done),
+
     rating: Number(row.rating || 0),
+
     createdAt: row.created_at ? new Date(row.created_at).getTime() : 0,
   }
 }
+
+/*
+ * meal_date가 없는 menu 데이터
+ * = 가능한 메뉴
+ */
+const possibleMenus = computed(() => {
+  return menus.value.filter((menu) => !menu.mealDate).sort((a, b) => b.createdAt - a.createdAt)
+})
 
 const isCurrentWeek = computed(() => {
   return toDateKey(viewWeekStart.value) === toDateKey(getMonday(new Date()))
@@ -103,6 +138,7 @@ const isCurrentWeek = computed(() => {
 
 const weekTitle = computed(() => {
   const start = viewWeekStart.value
+
   const end = addDays(start, 6)
 
   const first = `${start.getFullYear()}년 ` + `${start.getMonth() + 1}월 ` + `${start.getDate()}일`
@@ -125,8 +161,11 @@ const dayOptions = computed(() => {
 
     return {
       day,
-      label: `${day}요일 ${formatMonthDay(date)}`,
+
+      label: `${day}요일 ` + `${formatMonthDay(date)}`,
+
       date,
+
       dateKey: toDateKey(date),
     }
   })
@@ -170,8 +209,11 @@ const calendarDays = computed(() => {
 
     return {
       ...option,
+
       items,
+
       isToday: option.dateKey === todayDateKey(),
+
       isSelected: option.day === selectedDay.value,
     }
   })
@@ -201,8 +243,11 @@ async function scrollToToday() {
 
 async function moveToToday() {
   viewWeekStart.value = getMonday(new Date())
+
   selectedDay.value = getTodayDay()
+
   selectedMenuId.value = null
+  selectedCandidateId.value = null
 
   await scrollToToday()
 }
@@ -213,7 +258,9 @@ function startDateWatcher() {
   dateCheckTimer = window.setInterval(async () => {
     const newDateKey = todayDateKey()
 
-    if (newDateKey === lastDateKey) return
+    if (newDateKey === lastDateKey) {
+      return
+    }
 
     lastDateKey = newDateKey
 
@@ -225,6 +272,7 @@ function startDateWatcher() {
 
 async function loadMenus() {
   loading.value = true
+
   setStatus('Supabase에서 불러오는 중...')
 
   const { data, error } = await supabase
@@ -248,28 +296,195 @@ async function loadMenus() {
   menus.value = (data || []).map(rowToItem)
 
   setInitialSelectedDay()
+
   setStatus('공유 데이터와 동기화됨')
 }
 
+/*
+ * 가능한 메뉴 저장
+ */
+async function addCandidate() {
+  const name = candidateName.value.trim()
+
+  if (!name || candidateSaving.value) {
+    return
+  }
+
+  candidateSaving.value = true
+
+  setStatus('가능한 메뉴를 저장하는 중...')
+
+  const row = {
+    category: 'menu',
+
+    name,
+
+    menu_type: candidateType.value,
+
+    /*
+     * 핵심:
+     * 날짜가 없으면
+     * 가능한 메뉴로 취급
+     */
+    meal_date: null,
+
+    added_by: OWNER_NAME,
+
+    done: false,
+
+    rating: 0,
+  }
+
+  const { data, error } = await supabase.from(JIBBAP_TABLE).insert(row).select().single()
+
+  candidateSaving.value = false
+
+  if (error) {
+    console.error(error)
+
+    setStatus(`가능한 메뉴 추가 실패: ${error.message}`, true)
+
+    return
+  }
+
+  menus.value.push(rowToItem(data))
+
+  candidateName.value = ''
+  candidateType.value = '집밥'
+
+  setStatus('가능한 메뉴에 추가했습니다.')
+}
+
+/*
+ * 가능한 메뉴 선택
+ */
+function selectCandidate(menu) {
+  selectedMenuId.value = null
+
+  if (selectedCandidateId.value === menu.id) {
+    selectedCandidateId.value = null
+
+    setStatus('가능한 메뉴 선택을 취소했습니다.')
+
+    return
+  }
+
+  selectedCandidateId.value = menu.id
+
+  setStatus(`"${menu.name}" 선택됨 · 넣고 싶은 요일을 눌러주세요.`)
+}
+
+/*
+ * 가능한 메뉴를 주간 메뉴로 복사
+ *
+ * 원본 후보는 그대로 남는다.
+ */
+async function addCandidateToDay(day) {
+  const candidate = possibleMenus.value.find((item) => item.id === selectedCandidateId.value)
+
+  if (!candidate) {
+    selectedCandidateId.value = null
+
+    return
+  }
+
+  const targetDate = toDateKey(dayDate(day))
+
+  setStatus(`"${candidate.name}" 메뉴를 ${day}요일에 추가하는 중...`)
+
+  const row = {
+    category: 'menu',
+
+    name: candidate.name,
+
+    menu_type: candidate.type,
+
+    meal_date: targetDate,
+
+    added_by: OWNER_NAME,
+
+    done: false,
+
+    rating: 0,
+  }
+
+  const { data, error } = await supabase.from(JIBBAP_TABLE).insert(row).select().single()
+
+  if (error) {
+    console.error(error)
+
+    setStatus(`요일 추가 실패: ${error.message}`, true)
+
+    return
+  }
+
+  menus.value.push(rowToItem(data))
+
+  selectedCandidateId.value = null
+
+  setStatus(`"${candidate.name}"을 ${day}요일 메뉴에 추가했습니다.`)
+}
+
+/*
+ * 가능한 메뉴 삭제
+ */
+async function removeCandidate(menu) {
+  const shouldDelete = window.confirm(`"${menu.name}"을 가능한 메뉴에서 삭제할까요?`)
+
+  if (!shouldDelete) {
+    return
+  }
+
+  const { error } = await supabase.from(JIBBAP_TABLE).delete().eq('id', menu.id)
+
+  if (error) {
+    console.error(error)
+
+    setStatus(`삭제 실패: ${error.message}`, true)
+
+    return
+  }
+
+  menus.value = menus.value.filter((item) => item.id !== menu.id)
+
+  if (selectedCandidateId.value === menu.id) {
+    selectedCandidateId.value = null
+  }
+
+  setStatus('가능한 메뉴에서 삭제했습니다.')
+}
+
+/*
+ * 특정 날짜에 직접 메뉴 추가
+ */
 async function addMenu() {
   const name = menuName.value.trim()
 
-  if (!name || saving.value) return
+  if (!name || saving.value) {
+    return
+  }
 
   if (!selectedDay.value) {
     setInitialSelectedDay()
   }
 
   saving.value = true
+
   setStatus('메뉴를 저장하는 중...')
 
   const row = {
     category: 'menu',
+
     name,
+
     menu_type: menuType.value,
+
     meal_date: toDateKey(dayDate(selectedDay.value)),
+
     added_by: OWNER_NAME,
+
     done: false,
+
     rating: 0,
   }
 
@@ -286,6 +501,7 @@ async function addMenu() {
   }
 
   menus.value.push(rowToItem(data))
+
   menuName.value = ''
 
   setStatus('메뉴를 저장했습니다.')
@@ -298,6 +514,7 @@ async function toggleMenuDone(menu) {
     .from(JIBBAP_TABLE)
     .update({
       done: nextDone,
+
       updated_at: new Date().toISOString(),
     })
     .eq('id', menu.id)
@@ -318,7 +535,9 @@ async function toggleMenuDone(menu) {
 async function removeMenu(menu) {
   const shouldDelete = window.confirm(`"${menu.name}" 메뉴를 삭제할까요?`)
 
-  if (!shouldDelete) return
+  if (!shouldDelete) {
+    return
+  }
 
   const { error } = await supabase.from(JIBBAP_TABLE).delete().eq('id', menu.id)
 
@@ -339,27 +558,49 @@ async function removeMenu(menu) {
   setStatus('메뉴를 삭제했습니다.')
 }
 
+/*
+ * 기존 주간 메뉴 날짜 이동용
+ */
 function selectMenuForMove(menu) {
+  selectedCandidateId.value = null
+
   selectedMenuId.value = selectedMenuId.value === menu.id ? null : menu.id
 
   if (selectedMenuId.value) {
-    setStatus('이동할 요일을 선택하세요.')
+    setStatus(`"${menu.name}" 이동 선택됨 · 원하는 요일을 누르세요.`)
   } else {
     setStatus('메뉴 이동 선택을 취소했습니다.')
   }
 }
 
+/*
+ * 요일 클릭
+ *
+ * 1순위: 가능한 메뉴를 그 요일에 복사
+ * 2순위: 기존 주간 메뉴를 해당 요일로 이동
+ */
 async function selectDay(day) {
-  if (!DAYS.includes(day)) return
+  if (!DAYS.includes(day)) {
+    return
+  }
 
   selectedDay.value = day
 
-  if (!selectedMenuId.value) return
+  if (selectedCandidateId.value) {
+    await addCandidateToDay(day)
+
+    return
+  }
+
+  if (!selectedMenuId.value) {
+    return
+  }
 
   const menu = menus.value.find((item) => item.id === selectedMenuId.value)
 
   if (!menu) {
     selectedMenuId.value = null
+
     return
   }
 
@@ -367,7 +608,9 @@ async function selectDay(day) {
 
   if (menu.mealDate === newDate) {
     selectedMenuId.value = null
+
     setStatus('같은 요일입니다.')
+
     return
   }
 
@@ -375,6 +618,7 @@ async function selectDay(day) {
     .from(JIBBAP_TABLE)
     .update({
       meal_date: newDate,
+
       updated_at: new Date().toISOString(),
     })
     .eq('id', menu.id)
@@ -388,7 +632,9 @@ async function selectDay(day) {
   }
 
   menu.mealDate = newDate
+
   menu.day = day
+
   selectedMenuId.value = null
 
   setStatus('메뉴 날짜를 이동했습니다.')
@@ -398,7 +644,10 @@ function changeWeek(amount) {
   viewWeekStart.value = addDays(viewWeekStart.value, amount * 7)
 
   selectedDay.value = '월'
+
   selectedMenuId.value = null
+
+  selectedCandidateId.value = null
 
   setStatus(amount > 0 ? '다음 주를 표시합니다.' : '이전 주를 표시합니다.')
 }
@@ -411,8 +660,11 @@ async function goThisWeek() {
 
 onMounted(async () => {
   setInitialSelectedDay()
+
   await loadMenus()
+
   await scrollToToday()
+
   startDateWatcher()
 })
 
@@ -429,13 +681,101 @@ onBeforeUnmount(() => {
       <div>
         <h3>이번 주 메뉴</h3>
 
-        <p>요일별 집밥, 밀프렙, 외식과 배달 메뉴를 관리해요.</p>
+        <p>가능한 메뉴를 모아두고, 원하는 날짜에 골라서 배치해요.</p>
       </div>
 
       <span class="menu-count">
         {{ menuCountText }}
       </span>
     </header>
+
+    <!-- 가능한 메뉴 -->
+    <section class="possible-section">
+      <div class="possible-header">
+        <div>
+          <h4>가능한 메뉴</h4>
+
+          <p>먹을 수 있는 메뉴 후보를 미리 저장해두세요.</p>
+        </div>
+
+        <span class="possible-count"> {{ possibleMenus.length }}개 </span>
+      </div>
+
+      <form class="possible-form" @submit.prevent="addCandidate">
+        <input
+          v-model="candidateName"
+          type="text"
+          maxlength="40"
+          placeholder="예: 제육볶음, 샤브샤브"
+        />
+
+        <select v-model="candidateType">
+          <option value="집밥">집밥</option>
+
+          <option value="밀프렙">밀프렙</option>
+
+          <option value="외식">외식</option>
+
+          <option value="배달">배달</option>
+        </select>
+
+        <button
+          type="submit"
+          class="possible-add-button"
+          :disabled="candidateSaving || !candidateName.trim()"
+        >
+          {{ candidateSaving ? '저장 중' : '+ 후보 추가' }}
+        </button>
+      </form>
+
+      <p class="possible-guide">
+        메뉴를 하나 선택한 뒤 아래
+        <strong>요일 제목</strong>
+        을 누르면 해당 날짜에 추가돼요. 후보 메뉴는 그대로 남아있어요.
+      </p>
+
+      <div v-if="possibleMenus.length" class="possible-list">
+        <article
+          v-for="menu in possibleMenus"
+          :key="menu.id"
+          class="possible-card"
+          :class="{
+            selected: selectedCandidateId === menu.id,
+          }"
+          @click="selectCandidate(menu)"
+        >
+          <div class="possible-card-body">
+            <strong>
+              {{ menu.name }}
+            </strong>
+
+            <span
+              class="menu-badge"
+              :class="{
+                'meal-prep': menu.type === '밀프렙',
+
+                'dining-out': menu.type === '외식',
+
+                delivery: menu.type === '배달',
+              }"
+            >
+              {{ menu.type }}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            class="possible-delete"
+            aria-label="가능한 메뉴 삭제"
+            @click.stop="removeCandidate(menu)"
+          >
+            ×
+          </button>
+        </article>
+      </div>
+
+      <div v-else class="possible-empty">아직 가능한 메뉴가 없어요.</div>
+    </section>
 
     <div class="week-navigation">
       <button type="button" class="week-button" @click="changeWeek(-1)">이전 주</button>
@@ -455,11 +795,24 @@ onBeforeUnmount(() => {
       오늘 날짜로 돌아가기
     </button>
 
-    <p class="sync-status" :class="{ error: isError }">
+    <p
+      class="sync-status"
+      :class="{
+        error: isError,
+      }"
+    >
       {{ statusMessage }}
     </p>
 
-    <p v-if="selectedMenuId" class="move-guide">
+    <p v-if="selectedCandidateId" class="move-guide candidate-guide">
+      가능한 메뉴가 선택됐어요.
+
+      <strong> 추가하고 싶은 요일 제목 </strong>
+
+      을 눌러주세요.
+    </p>
+
+    <p v-else-if="selectedMenuId" class="move-guide">
       선택한 메뉴를 이동하려면
 
       <strong> 원하는 요일 제목 </strong>
@@ -484,6 +837,7 @@ onBeforeUnmount(() => {
           class="day-header"
           :class="{
             selected: day.isSelected,
+
             today: day.isToday,
           }"
           @click="selectDay(day.day)"
@@ -506,6 +860,7 @@ onBeforeUnmount(() => {
             class="menu-note"
             :class="{
               done: menu.done,
+
               'move-selected': selectedMenuId === menu.id,
             }"
             @click="selectMenuForMove(menu)"
@@ -534,7 +889,9 @@ onBeforeUnmount(() => {
                   class="menu-badge"
                   :class="{
                     'meal-prep': menu.type === '밀프렙',
+
                     'dining-out': menu.type === '외식',
+
                     delivery: menu.type === '배달',
                   }"
                 >
@@ -556,26 +913,34 @@ onBeforeUnmount(() => {
       </article>
     </div>
 
-    <form class="add-form" @submit.prevent="addMenu">
-      <input v-model="menuName" type="text" maxlength="40" placeholder="예: 김치찌개, 닭볶음탕" />
+    <!-- 기존 직접 날짜 메뉴 추가 -->
+    <section class="direct-section">
+      <div class="direct-title">날짜에 바로 메뉴 추가</div>
 
-      <select v-model="selectedDay">
-        <option v-for="option in dayOptions" :key="option.day" :value="option.day">
-          {{ option.label }}
-        </option>
-      </select>
+      <form class="add-form" @submit.prevent="addMenu">
+        <input v-model="menuName" type="text" maxlength="40" placeholder="예: 김치찌개, 닭볶음탕" />
 
-      <select v-model="menuType">
-        <option value="집밥">집밥</option>
-        <option value="밀프렙">밀프렙</option>
-        <option value="외식">외식</option>
-        <option value="배달">배달</option>
-      </select>
+        <select v-model="selectedDay">
+          <option v-for="option in dayOptions" :key="option.day" :value="option.day">
+            {{ option.label }}
+          </option>
+        </select>
 
-      <button type="submit" class="add-button" :disabled="saving || !menuName.trim()">
-        {{ saving ? '저장 중' : '추가' }}
-      </button>
-    </form>
+        <select v-model="menuType">
+          <option value="집밥">집밥</option>
+
+          <option value="밀프렙">밀프렙</option>
+
+          <option value="외식">외식</option>
+
+          <option value="배달">배달</option>
+        </select>
+
+        <button type="submit" class="add-button" :disabled="saving || !menuName.trim()">
+          {{ saving ? '저장 중' : '추가' }}
+        </button>
+      </form>
+    </section>
   </section>
 </template>
 
@@ -620,9 +985,170 @@ onBeforeUnmount(() => {
   font-size: 13px;
 }
 
+/* 가능한 메뉴 */
+
+.possible-section {
+  margin-bottom: 20px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: #fffafc;
+  box-shadow: 0 4px 14px rgb(229 107 130 / 8%);
+}
+
+.possible-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.possible-header h4 {
+  margin: 0;
+  color: var(--title);
+  font-size: 17px;
+}
+
+.possible-header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.possible-count {
+  flex: none;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #ffe1e9;
+  color: var(--pink-dark);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.possible-form {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto
+    auto;
+  gap: 8px;
+}
+
+.possible-form input,
+.possible-form select {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 11px;
+  border: 1px solid #eadfe8;
+  border-radius: 9px;
+  background: white;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.possible-add-button {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--pink);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.possible-add-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.possible-guide {
+  margin: 10px 2px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.possible-guide strong {
+  color: var(--pink-dark);
+}
+
+.possible-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.possible-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #eadfe8;
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.possible-card:hover {
+  transform: translateY(-1px);
+}
+
+.possible-card.selected {
+  border-color: var(--pink-dark);
+  outline: 3px solid rgb(255 143 163 / 20%);
+  background: #fff0f5;
+}
+
+.possible-card-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.possible-card strong {
+  max-width: 100%;
+  color: var(--ink);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.possible-delete {
+  flex: none;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.possible-empty {
+  padding: 20px;
+  border: 1px dashed var(--line);
+  border-radius: 11px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* 주간 이동 */
+
 .week-navigation {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns:
+    auto
+    1fr
+    auto;
   align-items: center;
   gap: 10px;
   margin-bottom: 12px;
@@ -634,9 +1160,9 @@ onBeforeUnmount(() => {
 }
 
 .week-button {
+  padding: 9px 12px;
   border: 0;
   border-radius: 9px;
-  padding: 9px 12px;
   background: #ffc0cb;
   color: var(--title);
   font-weight: 700;
@@ -661,9 +1187,9 @@ onBeforeUnmount(() => {
 .this-week-button {
   display: block;
   margin: 0 auto 12px;
+  padding: 7px 14px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 7px 14px;
   background: white;
   color: var(--title);
   font-weight: 700;
@@ -684,6 +1210,9 @@ onBeforeUnmount(() => {
 
 .move-guide {
   margin: 0 0 12px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: #fff7f9;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
@@ -693,11 +1222,18 @@ onBeforeUnmount(() => {
   color: var(--pink-dark);
 }
 
+.candidate-guide {
+  border: 1px solid rgb(255 143 163 / 26%);
+  background: #fff0f5;
+}
+
 .loading {
   padding: 50px 0;
   color: var(--muted);
   text-align: center;
 }
+
+/* 캘린더 */
 
 .calendar {
   display: flex;
@@ -731,9 +1267,9 @@ onBeforeUnmount(() => {
 
 .day-header {
   width: 100%;
+  padding: 8px 3px;
   border: 1px solid var(--line);
   border-radius: 9px;
-  padding: 8px 3px;
   background: var(--paper);
   color: var(--title);
   font-weight: 700;
@@ -747,8 +1283,8 @@ onBeforeUnmount(() => {
 }
 
 .day-header.today {
-  border-color: var(--pink);
   padding: 11px 5px;
+  border-color: var(--pink);
   background: linear-gradient(135deg, #ffd4dc, #fff0f5);
   box-shadow:
     0 0 0 3px rgb(255 143 163 / 22%),
@@ -776,8 +1312,8 @@ onBeforeUnmount(() => {
 .today-label {
   display: inline-block;
   margin-top: 5px;
-  border-radius: 999px;
   padding: 3px 9px;
+  border-radius: 999px;
   background: var(--pink-dark);
   color: white;
   font-size: 10px;
@@ -796,9 +1332,9 @@ onBeforeUnmount(() => {
 }
 
 .day-empty {
+  padding: 12px 4px;
   border: 1px dashed var(--line);
   border-radius: 8px;
-  padding: 12px 4px;
   color: var(--muted);
   font-size: 11px;
   text-align: center;
@@ -862,6 +1398,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   margin-top: 1px;
+  padding: 0;
   border: 2px solid var(--ink-soft);
   border-radius: 50%;
   background: transparent;
@@ -918,8 +1455,9 @@ onBeforeUnmount(() => {
 }
 
 .menu-badge {
-  border-radius: 999px;
+  display: inline-block;
   padding: 2px 7px;
+  border-radius: 999px;
   background: rgb(63 122 109 / 12%);
   color: var(--teal-dark);
   font-size: 9.5px;
@@ -945,15 +1483,19 @@ onBeforeUnmount(() => {
   color: #6f5691;
 }
 
-.day-column.today .delete-button {
+.delete-button,
+.possible-delete {
   flex: none;
   border: 0;
-  padding: 2px;
   background: transparent;
   color: var(--ink-soft);
-  font-size: 16px;
   cursor: pointer;
-  opacity: 0.55;
+  opacity: 0.65;
+}
+
+.delete-button {
+  padding: 2px;
+  font-size: 16px;
 }
 
 .day-column.today .delete-button {
@@ -964,9 +1506,9 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 5px;
   right: 22px;
+  padding: 1px 5px;
   border: 2px solid var(--stamp);
   border-radius: 4px;
-  padding: 1px 5px;
   color: var(--stamp);
   font-size: 9px;
   font-weight: 700;
@@ -980,10 +1522,25 @@ onBeforeUnmount(() => {
   font-size: 10px;
 }
 
+/* 직접 날짜 메뉴 추가 */
+
+.direct-section {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.direct-title {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .add-form {
   display: flex;
-  gap: 8px;
   flex-wrap: wrap;
+  gap: 8px;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -997,17 +1554,17 @@ onBeforeUnmount(() => {
 
 .add-form input,
 .add-form select {
+  padding: 10px 11px;
   border: 1px solid #eadfe8;
   border-radius: 8px;
-  padding: 10px 11px;
   background: white;
   color: var(--ink);
 }
 
 .add-button {
+  padding: 10px 18px;
   border: 0;
   border-radius: 8px;
-  padding: 10px 18px;
   background: var(--pink);
   color: white;
   font-weight: 700;
@@ -1019,13 +1576,41 @@ onBeforeUnmount(() => {
   opacity: 0.5;
 }
 
+@media (max-width: 760px) {
+  .possible-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 640px) {
   .section-header {
     align-items: flex-start;
   }
 
+  .possible-form {
+    grid-template-columns:
+      1fr
+      1fr;
+  }
+
+  .possible-form input {
+    grid-column: 1 / -1;
+  }
+
+  .possible-add-button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .possible-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .week-navigation {
-    grid-template-columns: 70px 1fr 70px;
+    grid-template-columns:
+      70px
+      1fr
+      70px;
     gap: 5px;
     padding: 8px;
   }
@@ -1066,7 +1651,9 @@ onBeforeUnmount(() => {
 
   .add-form {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns:
+      1fr
+      1fr;
   }
 
   .add-form input {
