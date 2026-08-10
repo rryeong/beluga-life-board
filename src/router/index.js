@@ -1,7 +1,4 @@
-import {
-  createRouter,
-  createWebHashHistory,
-} from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 
 import MealLayout from '@/views/meal/MealLayout.vue'
 
@@ -12,6 +9,7 @@ import MealPrepView from '@/views/meal/MealPrepView.vue'
 import WishlistView from '@/views/meal/WishlistView.vue'
 import ShoppingListView from '@/views/meal/ShoppingListView.vue'
 
+import BusLayout from '@/views/bus/BusLayout.vue'
 import CommuteBusView from '@/views/bus/CommuteBusView.vue'
 import ReturnBusView from '@/views/bus/ReturnBusView.vue'
 
@@ -22,8 +20,7 @@ import OppaCommuteView from '@/views/commute/OppaCommuteView.vue'
 import TennisView from '@/views/tennis/TennisView.vue'
 
 const router = createRouter({
-  history: createWebHashHistory(
-  import.meta.env.BASE_URL,),
+  history: createWebHashHistory(import.meta.env.BASE_URL),
 
   routes: [
     {
@@ -71,20 +68,22 @@ const router = createRouter({
     },
 
     {
-      path: '/bus/commute',
-      name: 'bus-commute',
-      component: CommuteBusView,
-    },
-
-    {
-      path: '/bus/return',
-      name: 'bus-return',
-      component: ReturnBusView,
-    },
-
-    {
       path: '/bus',
+      component: BusLayout,
       redirect: '/bus/commute',
+
+      children: [
+        {
+          path: 'commute',
+          name: 'bus-commute',
+          component: CommuteBusView,
+        },
+        {
+          path: 'return',
+          name: 'bus-return',
+          component: ReturnBusView,
+        },
+      ],
     },
 
     {
