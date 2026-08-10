@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 
 const newItem = ref('')
+const newMemo = ref('')
 
 const wishItems = ref([])
 const places = ref([])
@@ -14,15 +15,20 @@ const message = ref('')
 
 const randomItem = ref(null)
 
+const editingKey = ref(null)
+const editTitle = ref('')
+const editMemo = ref('')
+const savingKey = ref(null)
+
 const allItems = computed(() => {
   const wishes = wishItems.value.map((item) => ({
     id: item.id,
     key: `wish-${item.id}`,
     sourceType: 'wish',
     title: item.title,
+    memo: item.memo,
     done: item.done,
     category: null,
-    memo: null,
   }))
 
   const placeItems = places.value.map((place) => ({
@@ -30,9 +36,9 @@ const allItems = computed(() => {
     key: `place-${place.id}`,
     sourceType: 'place',
     title: place.place_name,
+    memo: place.memo,
     done: place.visited,
     category: place.category,
-    memo: place.memo,
   }))
 
   return [...wishes, ...placeItems]
@@ -78,6 +84,7 @@ async function loadItems() {
 
 async function addItem() {
   const title = newItem.value.trim()
+  const memo = newMemo.value.trim()
 
   if (!title || adding.value) {
     return
@@ -90,6 +97,7 @@ async function addItem() {
     .from('date_wishlist_items')
     .insert({
       title,
+      memo: memo || null,
       done: false,
     })
     .select()
@@ -107,7 +115,76 @@ async function addItem() {
   wishItems.value.unshift(data)
 
   newItem.value = ''
+  newMemo.value = ''
+
   adding.value = false
+}
+
+function startEdit(item) {
+  if (item.sourceType !== 'wish') {
+    return
+  }
+
+  editingKey.value = item.key
+  editTitle.value = item.title ?? ''
+  editMemo.value = item.memo ?? ''
+  message.value = ''
+}
+
+function cancelEdit() {
+  editingKey.value = null
+  editTitle.value = ''
+  editMemo.value = ''
+}
+
+async function saveEdit(item) {
+  const title = editTitle.value.trim()
+  const memo = editMemo.value.trim()
+
+  if (!title) {
+    message.value = '하고 싶은 것을 입력해주세요.'
+    return
+  }
+
+  savingKey.value = item.key
+  message.value = ''
+
+  const { data, error } = await supabase
+    .from('date_wishlist_items')
+    .update({
+      title,
+      memo: memo || null,
+    })
+    .eq('id', item.id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error(error)
+
+    message.value = '내용을 수정하지 못했어요.'
+    savingKey.value = null
+    return
+  }
+
+  const index = wishItems.value.findIndex((currentItem) => currentItem.id === item.id)
+
+  if (index !== -1) {
+    wishItems.value[index] = data
+  }
+
+  if (randomItem.value && randomItem.value.key === item.key) {
+    randomItem.value = {
+      ...randomItem.value,
+      title: data.title,
+      memo: data.memo,
+    }
+  }
+
+  savingKey.value = null
+  cancelEdit()
+
+  message.value = '내용을 수정했어요.'
 }
 
 async function toggleItem(item) {
@@ -218,6 +295,10 @@ async function removeItem(item) {
   if (randomItem.value && randomItem.value.key === item.key) {
     randomItem.value = null
   }
+
+  if (editingKey.value === item.key) {
+    cancelEdit()
+  }
 }
 
 function pickRandomItem() {
@@ -286,7 +367,7 @@ onMounted(() => {
           {{ randomItem.title }}
         </strong>
 
-        <p v-if="randomItem.sourceType === 'place' && randomItem.memo" class="random-memo">
+        <p v-if="randomItem.memo" class="random-memo">
           {{ randomItem.memo }}
         </p>
 
@@ -298,6 +379,8 @@ onMounted(() => {
 
     <form class="add-form" @submit.prevent="addItem">
       <input v-model="newItem" type="text" maxlength="60" placeholder="예: 한강 피크닉 가기" />
+
+      <input v-model="newMemo" type="text" maxlength="150" placeholder="메모 (선택)" />
 
       <button type="submit" :disabled="!newItem.trim() || adding">
         {{ adding ? '추가 중...' : '추가' }}
@@ -332,21 +415,50 @@ onMounted(() => {
         </button>
 
         <div class="wish-content">
-          <div class="wish-heading">
-            <span v-if="item.sourceType === 'place'" class="place-badge">
-              📍 {{ item.category || '장소' }}
+          <template v-if="editingKey !== item.key">
+            <div class="wish-heading">
+              <span v-if="item.sourceType === 'place'" class="place-badge">
+                📍 {{ item.category || '장소' }}
+              </span>
+
+              <span v-else class="wish-badge"> 하고 싶은 것 </span>
+            </div>
+
+            <span class="wish-title">
+              {{ item.title }}
             </span>
 
-            <span v-else class="wish-badge"> 하고 싶은 것 </span>
-          </div>
+            <span v-if="item.memo" class="wish-memo">
+              {{ item.memo }}
+            </span>
 
-          <span class="wish-title">
-            {{ item.title }}
-          </span>
+            <button
+              v-if="item.sourceType === 'wish'"
+              type="button"
+              class="edit-button"
+              @click="startEdit(item)"
+            >
+              수정
+            </button>
+          </template>
 
-          <span v-if="item.sourceType === 'place' && item.memo" class="wish-memo">
-            {{ item.memo }}
-          </span>
+          <form v-else class="edit-form" @submit.prevent="saveEdit(item)">
+            <input v-model="editTitle" type="text" maxlength="60" placeholder="하고 싶은 것" />
+
+            <textarea v-model="editMemo" rows="3" maxlength="150" placeholder="메모 (선택)" />
+
+            <div class="edit-actions">
+              <button type="button" class="cancel-button" @click="cancelEdit">취소</button>
+
+              <button
+                type="submit"
+                class="save-button"
+                :disabled="!editTitle.trim() || savingKey === item.key"
+              >
+                {{ savingKey === item.key ? '저장 중...' : '저장' }}
+              </button>
+            </div>
+          </form>
         </div>
 
         <button type="button" class="delete-button" aria-label="삭제" @click="removeItem(item)">
@@ -385,7 +497,6 @@ onMounted(() => {
   margin: 0;
   color: var(--title);
   font-size: 22px;
-  line-height: 1.3;
 }
 
 .section-header p {
@@ -412,7 +523,6 @@ onMounted(() => {
   border: 1px solid #e6d4e4;
   border-radius: 18px;
   background: linear-gradient(135deg, #fff, #faf2f7);
-  box-shadow: 0 5px 16px rgb(73 57 87 / 6%);
 }
 
 .random-heading {
@@ -431,7 +541,6 @@ onMounted(() => {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 12px;
-  line-height: 1.5;
 }
 
 .random-button {
@@ -448,7 +557,6 @@ onMounted(() => {
 
 .random-button:disabled {
   opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .random-result {
@@ -481,7 +589,6 @@ onMounted(() => {
 .random-result strong {
   color: var(--title);
   font-size: 18px;
-  line-height: 1.5;
 }
 
 .random-memo {
@@ -492,11 +599,10 @@ onMounted(() => {
 }
 
 .reroll-button {
-  margin-top: 2px;
   padding: 7px 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #fff;
+  background: white;
   color: var(--muted);
   font-size: 11px;
   cursor: pointer;
@@ -505,8 +611,6 @@ onMounted(() => {
 .random-empty {
   margin-top: 14px;
   padding: 12px;
-  border-radius: 12px;
-  background: rgb(255 255 255 / 60%);
   color: var(--muted);
   font-size: 12px;
   text-align: center;
@@ -514,17 +618,18 @@ onMounted(() => {
 
 .add-form {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1.5fr 2fr auto;
   gap: 8px;
   margin-bottom: 18px;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: white;
-  box-shadow: 0 4px 14px rgb(73 57 87 / 5%);
 }
 
-.add-form input {
+.add-form input,
+.edit-form input,
+.edit-form textarea {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -534,10 +639,17 @@ onMounted(() => {
   background: white;
   color: var(--text);
   font-size: 16px;
+  font-family: inherit;
   outline: none;
 }
 
-.add-form input:focus {
+.edit-form textarea {
+  resize: vertical;
+}
+
+.add-form input:focus,
+.edit-form input:focus,
+.edit-form textarea:focus {
   border-color: var(--pink-strong);
 }
 
@@ -552,9 +664,9 @@ onMounted(() => {
   cursor: pointer;
 }
 
-.add-form button:disabled {
+.add-form button:disabled,
+.save-button:disabled {
   opacity: 0.45;
-  cursor: not-allowed;
 }
 
 .message {
@@ -572,14 +684,13 @@ onMounted(() => {
 
 .wish-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   min-height: 68px;
   padding: 13px;
   border: 1px solid var(--line);
   border-radius: 17px;
   background: white;
-  box-shadow: 0 5px 16px rgb(73 57 87 / 7%);
 }
 
 .wish-card.place {
@@ -617,11 +728,7 @@ onMounted(() => {
   flex: 1;
   flex-direction: column;
   align-items: flex-start;
-  gap: 5px;
-}
-
-.wish-heading {
-  min-height: 20px;
+  gap: 6px;
 }
 
 .place-badge,
@@ -644,7 +751,6 @@ onMounted(() => {
 }
 
 .wish-title {
-  min-width: 0;
   color: var(--text);
   font-size: 14px;
   line-height: 1.5;
@@ -654,12 +760,57 @@ onMounted(() => {
 .wish-memo {
   color: var(--muted);
   font-size: 11px;
-  line-height: 1.45;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
 .wish-card.done .wish-title {
   text-decoration: line-through;
+}
+
+.edit-button {
+  margin-top: 4px;
+  padding: 6px 10px;
+  border: 1px solid var(--pink-strong);
+  border-radius: 9px;
+  background: white;
+  color: var(--pink-strong);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.edit-form {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+}
+
+.edit-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.cancel-button,
+.save-button {
+  min-height: 38px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cancel-button {
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--muted);
+}
+
+.save-button {
+  border: 0;
+  background: var(--pink-strong);
+  color: white;
 }
 
 .delete-button {
@@ -676,7 +827,6 @@ onMounted(() => {
   padding: 45px 20px;
   border: 1px dashed var(--line);
   border-radius: 16px;
-  background: rgb(255 255 255 / 45%);
   color: var(--muted);
   font-size: 14px;
   text-align: center;
@@ -696,16 +846,16 @@ onMounted(() => {
     width: 100%;
   }
 
-  .wish-list {
-    grid-template-columns: 1fr;
-  }
-
   .add-form {
     grid-template-columns: 1fr;
   }
 
   .add-form button {
     width: 100%;
+  }
+
+  .wish-list {
+    grid-template-columns: 1fr;
   }
 }
 </style>
