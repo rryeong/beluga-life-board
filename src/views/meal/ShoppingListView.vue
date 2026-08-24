@@ -57,7 +57,7 @@ const countText = computed(() => {
     return '장보기 항목 없음'
   }
 
-  return `${remainingCount.value}개 남음 · ` + `${completedCount.value}개 구매 완료`
+  return `${remainingCount.value}개 남음 · ${completedCount.value}개 구매 완료`
 })
 
 async function loadShoppingItems() {
@@ -293,6 +293,40 @@ async function removeShoppingItem(item) {
   setStatus('장보기 항목을 삭제했습니다.')
 }
 
+/*
+ * 품목명을 클립보드에 복사한 뒤 쿠팡으로 이동
+ */
+async function orderFromCoupang(item) {
+  try {
+    await navigator.clipboard.writeText(item.name)
+
+    setStatus(`"${item.name}"을 복사했습니다. 쿠팡 검색창에 붙여넣으세요.`)
+  } catch (error) {
+    console.warn('클립보드 복사 실패:', error)
+
+    setStatus('쿠팡으로 이동합니다. 상품명을 직접 검색해주세요.')
+  }
+
+  window.location.href = 'https://www.coupang.com/'
+}
+
+/*
+ * 품목명을 클립보드에 복사한 뒤 마켓컬리로 이동
+ */
+async function orderFromKurly(item) {
+  try {
+    await navigator.clipboard.writeText(item.name)
+
+    setStatus(`"${item.name}"을 복사했습니다. 컬리 검색창에 붙여넣으세요.`)
+  } catch (error) {
+    console.warn('클립보드 복사 실패:', error)
+
+    setStatus('마켓컬리로 이동합니다. 상품명을 직접 검색해주세요.')
+  }
+
+  window.location.href = 'https://www.kurly.com/'
+}
+
 onMounted(() => {
   loadShoppingItems()
 })
@@ -356,6 +390,20 @@ onMounted(() => {
                     : '구매 전'
               }}
             </span>
+
+            <div v-if="!item.done" class="order-actions">
+              <button
+                type="button"
+                class="order-button coupang"
+                @click.stop="orderFromCoupang(item)"
+              >
+                쿠팡 주문
+              </button>
+
+              <button type="button" class="order-button kurly" @click.stop="orderFromKurly(item)">
+                마켓컬리 주문
+              </button>
+            </div>
           </div>
 
           <div class="quantity-control">
@@ -620,6 +668,40 @@ onMounted(() => {
   font-size: 10px;
 }
 
+.order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.order-button {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.order-button:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.order-button.coupang {
+  background: #4c72d9;
+}
+
+.order-button.kurly {
+  background: #6f3f98;
+}
+
 .quantity-control {
   display: flex;
   flex: none;
@@ -664,8 +746,8 @@ onMounted(() => {
 
 .delete-button {
   flex: none;
-  border: 0;
   padding: 4px;
+  border: 0;
   background: transparent;
   color: var(--ink-soft);
   font-size: 19px;
@@ -699,9 +781,9 @@ onMounted(() => {
 }
 
 .transfer-button {
+  padding: 9px 8px;
   border: 0;
   border-radius: 9px;
-  padding: 9px 8px;
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
@@ -738,8 +820,8 @@ onMounted(() => {
 
 .add-form {
   display: flex;
-  gap: 8px;
   flex-wrap: wrap;
+  gap: 8px;
   padding: 12px;
   border: 1px solid rgb(255 255 255 / 72%);
   border-radius: 12px;
@@ -752,9 +834,9 @@ onMounted(() => {
 }
 
 .add-form input {
+  padding: 11px 12px;
   border: 1px solid rgb(255 255 255 / 82%);
   border-radius: 8px;
-  padding: 11px 12px;
   background: rgb(255 255 255 / 72%);
   color: var(--ink);
 }
@@ -772,9 +854,9 @@ onMounted(() => {
 }
 
 .add-button {
+  padding: 10px 18px;
   border: 0;
   border-radius: 8px;
-  padding: 10px 18px;
   background: var(--pink);
   color: white;
   font-weight: 700;
@@ -796,8 +878,24 @@ onMounted(() => {
   }
 
   .item-main {
+    align-items: flex-start;
     gap: 8px;
     padding: 12px 10px;
+  }
+
+  .item-body {
+    flex: 1;
+  }
+
+  .order-actions {
+    width: 100%;
+    gap: 5px;
+  }
+
+  .order-button {
+    flex: 1;
+    padding: 8px 6px;
+    font-size: 10px;
   }
 
   .quantity-control {
