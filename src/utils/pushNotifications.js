@@ -84,22 +84,18 @@ export async function enablePushNotifications() {
 
   const deviceId = getDeviceId()
 
-  const { error } = await supabase.from('push_subscriptions').upsert(
-    {
-      device_id: deviceId,
-      endpoint: subscription.endpoint,
-      subscription: subscriptionJson,
-      device_name: navigator.platform || 'unknown',
-      user_agent: navigator.userAgent,
-      updated_at: new Date().toISOString(),
-    },
-    {
-      onConflict: 'endpoint',
-    },
-  )
+  const { error } = await supabase.rpc('save_push_subscription', {
+    p_device_id: deviceId,
+    p_endpoint: subscription.endpoint,
+    p_subscription: subscriptionJson,
+    p_device_name: navigator.platform || 'unknown',
+    p_user_agent: navigator.userAgent,
+  })
 
   if (error) {
-    throw error
+    console.error('푸시 구독 저장 실패:', error)
+
+    throw new Error(`푸시 구독 저장 실패: ${error.message}`)
   }
 
   return true
