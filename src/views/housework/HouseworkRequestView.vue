@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 
 import { supabase } from '@/lib/supabase'
+
 const title = ref('')
 const memo = ref('')
 const dueDate = ref('')
@@ -25,6 +26,7 @@ const message = ref('')
 const isError = ref(false)
 
 /* 요청 수정 */
+
 const editingId = ref(null)
 const editTitle = ref('')
 const editMemo = ref('')
@@ -40,6 +42,8 @@ function setMessage(text, error = false) {
   message.value = text
   isError.value = error
 }
+
+/* 상태 */
 
 const requestedCount = computed(() => {
   return requests.value.filter((item) => item.status === '요청함').length
@@ -60,6 +64,8 @@ const activeRequests = computed(() => {
 const completedRequests = computed(() => {
   return requests.value.filter((item) => item.status === '완료')
 })
+
+/* 보상 */
 
 const sortedRewards = computed(() => {
   return [...rewards.value].sort((a, b) => a.cost - b.cost)
@@ -112,6 +118,8 @@ function priorityClass(value) {
   return value === '급함' ? 'urgent' : 'normal'
 }
 
+/* 사진 */
+
 function getStoragePathFromUrl(url) {
   if (!url) return null
 
@@ -137,6 +145,8 @@ async function deletePhotoByUrl(url) {
     console.warn('기존 사진 삭제 실패:', error)
   }
 }
+
+/* 데이터 불러오기 */
 
 async function loadData() {
   loading.value = true
@@ -169,7 +179,9 @@ async function loadData() {
   }
 
   requests.value = requestData ?? []
+
   rewards.value = rewardData ?? []
+
   balance.value = walletData?.balance ?? 0
 }
 
@@ -255,8 +267,11 @@ async function uploadPhoto() {
   }
 }
 
+/* 요청 추가 */
+
 async function addRequest() {
   const trimmedTitle = title.value.trim()
+
   const trimmedMemo = memo.value.trim()
 
   if (!trimmedTitle || adding.value) {
@@ -325,8 +340,11 @@ function startEdit(item) {
   editingId.value = item.id
 
   editTitle.value = item.title ?? ''
+
   editMemo.value = item.memo ?? ''
+
   editDueDate.value = item.due_date ?? ''
+
   editPriority.value = item.priority ?? '보통'
 
   editOriginalPhotoUrl.value = item.photo_url ?? ''
@@ -500,7 +518,6 @@ async function setWalletBalance(nextBalance) {
 
   if (error) {
     console.error(error)
-
     return false
   }
 
@@ -508,6 +525,8 @@ async function setWalletBalance(nextBalance) {
 
   return true
 }
+
+/* 상태 변경 */
 
 async function changeStatus(item, nextStatus) {
   if (item.status === nextStatus) {
@@ -571,6 +590,8 @@ async function changeStatus(item, nextStatus) {
   }
 }
 
+/* 요청 삭제 */
+
 async function removeRequest(item) {
   const confirmed = window.confirm(`"${item.title}" 요청을 삭제할까요?`)
 
@@ -615,7 +636,7 @@ async function removeRequest(item) {
   setMessage('요청을 삭제했어요.')
 }
 
-/* 보상 */
+/* 보상 추가 */
 
 async function addReward() {
   const trimmedTitle = rewardTitle.value.trim()
@@ -655,6 +676,8 @@ async function addReward() {
   setMessage('새 보상을 추가했어요.')
 }
 
+/* 보상 사용 */
+
 async function redeemReward(reward) {
   if (balance.value < reward.cost) {
     setMessage(`하트가 ${reward.cost - balance.value}개 더 필요해요.`, true)
@@ -680,6 +703,8 @@ async function redeemReward(reward) {
 
   setMessage(`${reward.emoji} ${reward.title} 보상을 받았어요!`)
 }
+
+/* 보상 삭제 */
 
 async function removeReward(reward) {
   const confirmed = window.confirm(`"${reward.title}" 보상을 삭제할까요?`)
@@ -788,7 +813,13 @@ onMounted(() => {
       </div>
     </section>
 
-    <p v-if="message" class="message" :class="{ error: isError }">
+    <p
+      v-if="message"
+      class="message"
+      :class="{
+        error: isError,
+      }"
+    >
       {{ message }}
     </p>
 
@@ -799,7 +830,7 @@ onMounted(() => {
       <section class="tasks-section main-focus-section">
         <div class="section-title-row">
           <div>
-            <h3>🧹 해야 할 집안일</h3>
+            <h3>해야 할 집안일</h3>
 
             <p>지금 해야 하는 일을 먼저 확인해요.</p>
           </div>
@@ -892,6 +923,7 @@ onMounted(() => {
               </div>
             </template>
 
+            <!-- 수정 -->
             <form v-else class="edit-form" @submit.prevent="saveEdit(item)">
               <div class="edit-heading">
                 <strong> 요청 수정 </strong>
@@ -960,13 +992,13 @@ onMounted(() => {
         <div v-else class="empty-state compact">🎉 지금 해야 할 집안일이 없어요.</div>
       </section>
 
-      <!-- 보상 -->
+      <!-- 오빠가 보는 보상 -->
       <section class="reward-section main-focus-section">
         <div class="section-title-row">
           <div>
-            <h3>🎁 하트 포인트 보상</h3>
+            <h3>하트 포인트 보상</h3>
 
-            <p>집안일을 완료해서 모은 하트로 보상을 받을 수 있어요.</p>
+            <p>하트를 모아서 원하는 보상을 받아요.</p>
           </div>
         </div>
 
@@ -979,15 +1011,6 @@ onMounted(() => {
               available: balance >= reward.cost,
             }"
           >
-            <button
-              type="button"
-              class="reward-delete"
-              aria-label="보상 삭제"
-              @click="removeReward(reward)"
-            >
-              ×
-            </button>
-
             <div class="reward-emoji">
               {{ reward.emoji }}
             </div>
@@ -996,7 +1019,19 @@ onMounted(() => {
               {{ reward.title }}
             </strong>
 
-            <span> {{ reward.cost }} 💗 </span>
+            <div class="reward-progress-info">
+              <span>
+                필요
+                {{ reward.cost }}
+                💗
+              </span>
+
+              <span>
+                현재
+                {{ balance }}
+                💗
+              </span>
+            </div>
 
             <button
               type="button"
@@ -1004,46 +1039,19 @@ onMounted(() => {
               :disabled="balance < reward.cost"
               @click="redeemReward(reward)"
             >
-              {{ balance >= reward.cost ? '보상 받기' : `${reward.cost - balance}개 더 필요` }}
+              {{ balance >= reward.cost ? '보상 받기 🎉' : `${reward.cost - balance}개 더 필요` }}
             </button>
           </article>
         </div>
 
         <div v-else class="empty-state compact">아직 등록한 보상이 없어요.</div>
-
-        <div class="reward-editor">
-          <span class="editor-label"> 보상 편집 </span>
-
-          <form class="reward-form" @submit.prevent="addReward">
-            <input v-model="rewardEmoji" type="text" maxlength="4" placeholder="🎁" />
-
-            <input v-model="rewardTitle" type="text" maxlength="60" placeholder="예: 커피 사주기" />
-
-            <label>
-              <span> 필요한 하트 </span>
-
-              <input v-model.number="rewardCost" type="number" min="1" max="999" />
-            </label>
-
-            <button
-              type="submit"
-              :disabled="
-                !rewardTitle.trim() ||
-                !Number.isInteger(Number(rewardCost)) ||
-                Number(rewardCost) < 1
-              "
-            >
-              보상 추가
-            </button>
-          </form>
-        </div>
       </section>
 
-      <!-- 완료한 집안일 -->
+      <!-- 완료 -->
       <section class="completed-section">
         <div class="section-title-row">
           <div>
-            <h3>✅ 완료한 집안일</h3>
+            <h3>완료한 집안일</h3>
 
             <p>지금까지 완료한 요청이에요.</p>
           </div>
@@ -1080,13 +1088,18 @@ onMounted(() => {
         <div v-else class="empty-state compact">아직 완료한 집안일이 없어요.</div>
       </section>
 
-      <!-- 새 집안일 요청 -->
-      <section class="request-section request-editor-section">
+      <!-- 관리 영역 -->
+      <section class="manage-divider">
+        <span> 관리 </span>
+      </section>
+
+      <!-- 새 요청 -->
+      <section class="request-section">
         <div class="section-title-row">
           <div>
-            <h3>✏️ 새 집안일 요청</h3>
+            <h3>새 집안일 요청</h3>
 
-            <p>새로운 부탁은 여기에서 추가해요.</p>
+            <p>새로운 부탁을 추가해요.</p>
           </div>
         </div>
 
@@ -1131,6 +1144,51 @@ onMounted(() => {
             :disabled="!title.trim() || adding || uploading"
           >
             {{ uploading ? '사진 올리는 중...' : adding ? '요청하는 중...' : '오빠에게 요청하기' }}
+          </button>
+        </form>
+      </section>
+
+      <!-- 보상 편집 -->
+      <section class="reward-manage-section">
+        <div class="section-title-row">
+          <div>
+            <h3>보상 편집</h3>
+
+            <p>보상을 추가하거나 삭제해요.</p>
+          </div>
+        </div>
+
+        <div v-if="sortedRewards.length" class="reward-manage-list">
+          <div v-for="reward in sortedRewards" :key="reward.id" class="reward-manage-item">
+            <span class="reward-manage-name">
+              {{ reward.emoji }}
+              {{ reward.title }}
+            </span>
+
+            <span class="reward-manage-cost"> {{ reward.cost }} 💗 </span>
+
+            <button type="button" @click="removeReward(reward)">삭제</button>
+          </div>
+        </div>
+
+        <form class="reward-form" @submit.prevent="addReward">
+          <input v-model="rewardEmoji" type="text" maxlength="4" placeholder="🎁" />
+
+          <input v-model="rewardTitle" type="text" maxlength="60" placeholder="예: 치킨 사주기" />
+
+          <label>
+            <span> 필요한 하트 </span>
+
+            <input v-model.number="rewardCost" type="number" min="1" max="999" />
+          </label>
+
+          <button
+            type="submit"
+            :disabled="
+              !rewardTitle.trim() || !Number.isInteger(Number(rewardCost)) || Number(rewardCost) < 1
+            "
+          >
+            보상 추가
           </button>
         </form>
       </section>
@@ -1254,7 +1312,7 @@ onMounted(() => {
   font-size: 10px;
 }
 
-/* 요약 */
+/* 상태 요약 */
 
 .summary-grid {
   display: grid;
@@ -1288,12 +1346,13 @@ onMounted(() => {
   background: #f6fbf9;
 }
 
-/* 주요 섹션 */
+/* 섹션 */
 
-.request-section,
 .tasks-section,
 .reward-section,
-.completed-section {
+.completed-section,
+.request-section,
+.reward-manage-section {
   margin-top: 22px;
 }
 
@@ -1302,14 +1361,6 @@ onMounted(() => {
   border: 1px solid var(--line);
   border-radius: 20px;
   background: rgb(255 255 255 / 45%);
-}
-
-.tasks-section.main-focus-section {
-  margin-top: 18px;
-}
-
-.reward-section.main-focus-section {
-  margin-top: 18px;
 }
 
 .section-count {
@@ -1322,7 +1373,7 @@ onMounted(() => {
   font-weight: 800;
 }
 
-/* 입력폼 */
+/* 입력 */
 
 .request-form,
 .edit-form {
@@ -1441,7 +1492,7 @@ onMounted(() => {
   color: var(--red);
 }
 
-/* 해야 할 집안일 */
+/* 할 일 */
 
 .task-list {
   display: grid;
@@ -1538,8 +1589,7 @@ onMounted(() => {
   object-fit: cover;
 }
 
-.delete-button,
-.reward-delete {
+.delete-button {
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -1640,7 +1690,7 @@ onMounted(() => {
 
 .reward-card {
   position: relative;
-  padding: 17px 12px 13px;
+  padding: 18px 12px 13px;
   border: 1px solid var(--line);
   border-radius: 17px;
   background: white;
@@ -1652,34 +1702,35 @@ onMounted(() => {
   background: #fffafd;
 }
 
-.reward-delete {
-  position: absolute;
-  top: 5px;
-  right: 7px;
-}
-
 .reward-emoji {
   margin-bottom: 7px;
-  font-size: 26px;
+  font-size: 28px;
 }
 
 .reward-card strong {
   display: block;
   color: var(--title);
-  font-size: 13px;
+  font-size: 14px;
 }
 
-.reward-card > span {
-  display: block;
-  margin: 5px 0 10px;
+.reward-progress-info {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 9px 0 12px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.reward-progress-info span:first-child {
   color: #ad6489;
-  font-size: 12px;
-  font-weight: 800;
 }
 
 .reward-button {
   width: 100%;
-  padding: 8px;
+  padding: 9px;
   border: 0;
   border-radius: 9px;
   background: var(--pink-strong);
@@ -1692,47 +1743,7 @@ onMounted(() => {
 .reward-button:disabled {
   background: #eee8ee;
   color: var(--muted);
-}
-
-.reward-editor {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--line);
-}
-
-.editor-label {
-  display: block;
-  margin-bottom: 8px;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.reward-form {
-  display: grid;
-  grid-template-columns:
-    70px
-    minmax(0, 2fr)
-    minmax(130px, 1fr)
-    auto;
-  gap: 8px;
-  padding: 12px;
-  border: 1px dashed var(--line);
-  border-radius: 15px;
-}
-
-.reward-form button {
-  border: 0;
-  border-radius: 10px;
-  padding: 10px 14px;
-  background: var(--purple);
-  color: white;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.reward-form button:disabled {
-  opacity: 0.45;
+  cursor: default;
 }
 
 /* 완료 */
@@ -1790,23 +1801,107 @@ onMounted(() => {
   color: #b76c76;
 }
 
-/* 새 요청 영역은 맨 아래 + 덜 강조 */
+/* 관리 구분선 */
 
-.request-editor-section {
-  margin-top: 34px;
-  padding-top: 22px;
+.manage-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 38px;
+}
+
+.manage-divider::before,
+.manage-divider::after {
+  content: '';
+  flex: 1;
   border-top: 1px dashed var(--line);
 }
 
-.request-editor-section .section-title-row h3 {
-  font-size: 16px;
+.manage-divider span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
 }
 
-.request-editor-section .section-title-row p {
+/* 보상 편집 */
+
+.reward-manage-section {
+  margin-top: 28px;
+}
+
+.reward-manage-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+
+.reward-manage-item {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto
+    auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: white;
+}
+
+.reward-manage-name {
+  min-width: 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.reward-manage-cost {
+  color: #ad6489;
   font-size: 11px;
+  font-weight: 800;
 }
 
-/* 빈 화면 */
+.reward-manage-item button {
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: #f5edf2;
+  color: #ad6475;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.reward-form {
+  display: grid;
+  grid-template-columns:
+    70px
+    minmax(0, 2fr)
+    minmax(130px, 1fr)
+    auto;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 15px;
+}
+
+.reward-form button {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--purple);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reward-form button:disabled {
+  opacity: 0.45;
+}
+
+/* 빈 상태 */
 
 .empty-state {
   margin-top: 12px;
@@ -1877,6 +1972,17 @@ onMounted(() => {
 
   .main-focus-section {
     padding: 14px;
+  }
+
+  .reward-manage-item {
+    grid-template-columns:
+      minmax(0, 1fr)
+      auto;
+  }
+
+  .reward-manage-item button {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 }
 </style>
