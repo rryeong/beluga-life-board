@@ -1,13 +1,53 @@
 import { supabase } from '@/lib/supabase'
 
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+function normalizeVapidPublicKey(value) {
+  if (!value) {
+    return ''
+  }
 
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  return value
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\s+/g, '')
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const normalized = normalizeVapidPublicKey(base64String)
+
+  const padding = '='.repeat((4 - (normalized.length % 4)) % 4)
+
+  const base64 = (normalized + padding).replace(/-/g, '+').replace(/_/g, '/')
 
   const rawData = window.atob(base64)
 
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)))
+}
+
+function validateVapidPublicKey(publicKey) {
+  const normalized = normalizeVapidPublicKey(publicKey)
+
+  if (!normalized) {
+    throw new Error('VAPID Public Key가 설정되지 않았어요.')
+  }
+
+  let decoded
+
+  try {
+    decoded = urlBase64ToUint8Array(normalized)
+  } catch {
+    throw new Error(`VAPID Public Key 형식 오류: 문자열 길이 ${normalized.length}`)
+  }
+
+  if (decoded.length !== 65 || decoded[0] !== 4) {
+    throw new Error(
+      `VAPID Public Key가 올바른 P-256 키가 아니에요. 문자열 ${normalized.length}자 / 디코딩 ${decoded.length}바이트 / 첫 바이트 ${decoded[0]}`,
+    )
+  }
+
+  return {
+    normalized,
+    decoded,
+  }
 }
 
 function getDeviceId() {
@@ -70,13 +110,11 @@ export async function enablePushNotifications() {
   if (!subscription) {
     const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
-    if (!publicKey) {
-      throw new Error('VAPID Public Key가 설정되지 않았어요.')
-    }
+    const { decoded: applicationServerKey } = validateVapidPublicKey(publicKey)
 
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
+      applicationServerKey,
     })
   }
 
