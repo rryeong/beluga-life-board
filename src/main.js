@@ -59,3 +59,15 @@ document.addEventListener('visibilitychange', () => {
     checkForUpdate()
   }
 })
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`)
+
+      console.log('Service Worker 등록 완료')
+    } catch (error) {
+      console.error('Service Worker 등록 실패:', error)
+    }
+  })
+}

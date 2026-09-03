@@ -385,15 +385,9 @@ async function removePhoto(memory, slot) {
     return
   }
 
-  let nextPhoto1 = memory.photo_path_1
-  let nextPhoto2 = memory.photo_path_2
+  const nextPhoto1 = slot === 1 ? memory.photo_path_2 : memory.photo_path_1
 
-  if (slot === 1) {
-    nextPhoto1 = memory.photo_path_2
-    nextPhoto2 = null
-  } else {
-    nextPhoto2 = null
-  }
+  const nextPhoto2 = null
 
   const { data, error } = await supabase
     .from('date_memories')

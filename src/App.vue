@@ -1,5 +1,49 @@
 <script setup>
+import { onMounted, ref } from 'vue'
+
 import belugaPair from '@/assets/beluga-pair.png'
+
+import { enablePushNotifications, getNotificationStatus } from '@/utils/pushNotifications'
+
+const notificationStatus = ref('loading')
+
+const notificationMessage = ref('')
+
+const notificationLoading = ref(false)
+
+async function checkNotificationStatus() {
+  try {
+    notificationStatus.value = await getNotificationStatus()
+  } catch {
+    notificationStatus.value = 'disabled'
+  }
+}
+
+async function enableNotifications() {
+  notificationLoading.value = true
+
+  notificationMessage.value = ''
+
+  try {
+    await enablePushNotifications()
+
+    notificationStatus.value = 'enabled'
+
+    notificationMessage.value = '알림을 받을 수 있어요 🔔'
+  } catch (error) {
+    console.error(error)
+
+    notificationMessage.value = error.message || '알림 설정에 실패했어요.'
+
+    await checkNotificationStatus()
+  } finally {
+    notificationLoading.value = false
+  }
+}
+
+onMounted(() => {
+  checkNotificationStatus()
+})
 </script>
 
 <template>
@@ -12,6 +56,35 @@ import belugaPair from '@/assets/beluga-pair.png'
           <h1>벨루가네</h1>
         </div>
       </RouterLink>
+
+      <div class="notification-area">
+        <button
+          v-if="notificationStatus === 'disabled' || notificationStatus === 'denied'"
+          class="notification-button"
+          :disabled="notificationLoading || notificationStatus === 'denied'"
+          @click="enableNotifications"
+        >
+          {{
+            notificationLoading
+              ? '설정 중...'
+              : notificationStatus === 'denied'
+                ? '🔕 알림 차단됨'
+                : '🔔 알림 받기'
+          }}
+        </button>
+
+        <div v-else-if="notificationStatus === 'enabled'" class="notification-enabled">
+          🔔 알림 켜짐
+        </div>
+
+        <div v-else-if="notificationStatus === 'unsupported'" class="notification-unsupported">
+          이 환경에서는 알림을 사용할 수 없어요
+        </div>
+
+        <p v-if="notificationMessage" class="notification-message">
+          {{ notificationMessage }}
+        </p>
+      </div>
 
       <nav class="main-navigation">
         <RouterLink to="/meal"> 밥 </RouterLink>
@@ -49,7 +122,7 @@ import belugaPair from '@/assets/beluga-pair.png'
 .title-link {
   display: block;
   width: fit-content;
-  margin: 0 auto 18px;
+  margin: 0 auto 12px;
   color: inherit;
   text-decoration: none;
 }
@@ -74,6 +147,50 @@ h1 {
   font-size: 24px;
   line-height: 1.2;
   text-align: center;
+}
+
+.notification-area {
+  min-height: 32px;
+  margin: 0 auto 14px;
+  text-align: center;
+}
+
+.notification-button {
+  padding: 7px 13px;
+  border: 1px solid #ddcde7;
+  border-radius: 999px;
+  background: #faf6fc;
+  color: #624d70;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.notification-button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.notification-enabled {
+  display: inline-block;
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: #f2e9f7;
+  color: #624d70;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.notification-unsupported {
+  color: #8b7d93;
+  font-size: 11px;
+}
+
+.notification-message {
+  margin: 6px 0 0;
+  color: #8b7d93;
+  font-size: 11px;
 }
 
 .main-navigation {
@@ -118,7 +235,7 @@ h1 {
   }
 
   .title-link {
-    margin-bottom: 14px;
+    margin-bottom: 10px;
   }
 
   .brand-title {
@@ -132,6 +249,10 @@ h1 {
 
   h1 {
     font-size: 22px;
+  }
+
+  .notification-area {
+    margin-bottom: 12px;
   }
 
   .main-navigation {

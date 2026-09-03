@@ -281,7 +281,7 @@ async function addRequest() {
   adding.value = true
   setMessage('')
 
-  let photoUrl = null
+  let photoUrl
 
   try {
     photoUrl = await uploadPhoto()
