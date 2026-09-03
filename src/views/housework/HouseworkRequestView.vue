@@ -2,7 +2,6 @@
 import { computed, onMounted, ref } from 'vue'
 
 import { supabase } from '@/lib/supabase'
-
 const title = ref('')
 const memo = ref('')
 const dueDate = ref('')
@@ -187,12 +186,14 @@ function handlePhotoChange(event) {
 
   if (!file.type.startsWith('image/')) {
     setMessage('이미지 파일만 첨부할 수 있어요.', true)
+
     event.target.value = ''
     return
   }
 
   if (file.size > 8 * 1024 * 1024) {
     setMessage('사진은 8MB 이하로 올려주세요.', true)
+
     event.target.value = ''
     return
   }
@@ -329,7 +330,9 @@ function startEdit(item) {
   editPriority.value = item.priority ?? '보통'
 
   editOriginalPhotoUrl.value = item.photo_url ?? ''
+
   editPhotoPreview.value = item.photo_url ?? ''
+
   editPhotoFile.value = null
 
   removeExistingPhoto.value = false
@@ -388,6 +391,7 @@ function handleEditPhotoChange(event) {
   }
 
   editPhotoFile.value = file
+
   editPhotoPreview.value = URL.createObjectURL(file)
 
   removeExistingPhoto.value = false
@@ -412,6 +416,7 @@ function removeEditPhoto() {
 
 async function saveEdit(item) {
   const trimmedTitle = editTitle.value.trim()
+
   const trimmedMemo = editMemo.value.trim()
 
   if (!trimmedTitle || savingEdit.value) {
@@ -422,11 +427,13 @@ async function saveEdit(item) {
   setMessage('')
 
   let newPhotoUrl = editOriginalPhotoUrl.value || null
+
   let uploadedNewPhoto = false
 
   try {
     if (editPhotoFile.value) {
       newPhotoUrl = await uploadPhotoFile(editPhotoFile.value)
+
       uploadedNewPhoto = true
     } else if (removeExistingPhoto.value) {
       newPhotoUrl = null
@@ -476,7 +483,7 @@ async function saveEdit(item) {
   }
 }
 
-/* 고마움 */
+/* 하트 포인트 */
 
 async function setWalletBalance(nextBalance) {
   const safeBalance = Math.max(0, nextBalance)
@@ -508,7 +515,9 @@ async function changeStatus(item, nextStatus) {
   }
 
   const previousStatus = item.status
+
   const wasCompleted = previousStatus === '완료'
+
   const willComplete = nextStatus === '완료'
 
   const changes = {
@@ -538,12 +547,14 @@ async function changeStatus(item, nextStatus) {
   }
 
   if (!wasCompleted && willComplete) {
-    const walletSuccess = await setWalletBalance(balance.value + Number(item.thanks_points ?? 1))
+    const points = Number(item.thanks_points ?? 1)
+
+    const walletSuccess = await setWalletBalance(balance.value + points)
 
     if (!walletSuccess) {
-      setMessage('집안일은 완료됐지만 고마움 적립에 실패했어요.', true)
+      setMessage('집안일은 완료됐지만 하트 포인트 적립에 실패했어요.', true)
     } else {
-      setMessage(`${item.title} 완료! 고마움 +${item.thanks_points ?? 1} 💗`)
+      setMessage(`${item.title} 완료! 하트 +${points} 💗`)
     }
   } else if (wasCompleted && !willComplete) {
     await setWalletBalance(balance.value - Number(item.thanks_points ?? 1))
@@ -569,7 +580,7 @@ async function removeRequest(item) {
 
   if (item.status === '완료') {
     const confirmedCompleted = window.confirm(
-      '완료된 요청을 삭제하면 적립된 고마움도 줄어들어요. 계속할까요?',
+      '완료된 요청을 삭제하면 적립된 하트 포인트도 줄어들어요. 계속할까요?',
     )
 
     if (!confirmedCompleted) {
@@ -608,6 +619,7 @@ async function removeRequest(item) {
 
 async function addReward() {
   const trimmedTitle = rewardTitle.value.trim()
+
   const cost = Number(rewardCost.value)
 
   if (!trimmedTitle || !Number.isInteger(cost) || cost < 1) {
@@ -645,13 +657,13 @@ async function addReward() {
 
 async function redeemReward(reward) {
   if (balance.value < reward.cost) {
-    setMessage(`고마움이 ${reward.cost - balance.value}개 더 필요해요.`, true)
+    setMessage(`하트가 ${reward.cost - balance.value}개 더 필요해요.`, true)
 
     return
   }
 
   const confirmed = window.confirm(
-    `${reward.emoji} ${reward.title} 보상을 받을까요?\n고마움 ${reward.cost}개가 사용돼요.`,
+    `${reward.emoji} ${reward.title} 보상을 받을까요?\n하트 ${reward.cost}개가 사용돼요.`,
   )
 
   if (!confirmed) {
@@ -702,12 +714,13 @@ onMounted(() => {
       <div>
         <h2>집안일</h2>
 
-        <p>오빠에게 부탁할 집안일을 남겨두는 공간이에요.</p>
+        <p>오늘 해야 할 집안일과 받을 수 있는 보상을 확인해요.</p>
       </div>
 
       <span class="heart-balance"> 💗 {{ balance }} </span>
     </header>
 
+    <!-- 하트 포인트 -->
     <section class="game-panel">
       <div class="game-heading">
         <div>
@@ -718,10 +731,11 @@ onMounted(() => {
 
         <div v-if="nextReward" class="next-reward">
           다음 보상까지
+
           <b> {{ nextReward.cost - balance }}개 </b>
         </div>
 
-        <div v-else-if="rewards.length" class="next-reward">지금 받을 수 있는 보상이 있어요 🎉</div>
+        <div v-else-if="rewards.length" class="next-reward">받을 수 있는 보상이 있어요 🎉</div>
       </div>
 
       <div class="progress-track">
@@ -737,20 +751,20 @@ onMounted(() => {
         <span> 현재 {{ balance }} 💗 </span>
 
         <span>
+          다음 목표:
           {{ nextReward.emoji }}
           {{ nextReward.title }}
           {{ nextReward.cost }} 💗
         </span>
       </div>
 
-      <div v-else-if="!rewards.length" class="progress-caption">
-        아래에서 첫 보상을 만들어보세요.
-      </div>
+      <div v-else-if="!rewards.length" class="progress-caption">아직 등록된 보상이 없어요.</div>
     </section>
 
+    <!-- 요약 -->
     <section class="summary-grid">
       <div class="summary-card">
-        <span>요청함</span>
+        <span> 해야 함 </span>
 
         <strong>
           {{ requestedCount }}
@@ -758,7 +772,7 @@ onMounted(() => {
       </div>
 
       <div class="summary-card">
-        <span>하는 중</span>
+        <span> 하는 중 </span>
 
         <strong>
           {{ doingCount }}
@@ -766,66 +780,12 @@ onMounted(() => {
       </div>
 
       <div class="summary-card completed">
-        <span>완료</span>
+        <span> 완료 </span>
 
         <strong>
           {{ completedCount }}
         </strong>
       </div>
-    </section>
-
-    <section class="request-section">
-      <div class="section-title-row">
-        <div>
-          <h3>새 집안일 요청</h3>
-
-          <p>오빠에게 해줬으면 하는 일을 남겨주세요.</p>
-        </div>
-      </div>
-
-      <form class="request-form" @submit.prevent="addRequest">
-        <input v-model="title" type="text" maxlength="80" placeholder="예: 분리수거 해줘" />
-
-        <textarea v-model="memo" rows="3" maxlength="250" placeholder="메모 (선택)" />
-
-        <div class="form-row">
-          <label>
-            <span> 언제까지? (선택) </span>
-
-            <input v-model="dueDate" type="date" />
-          </label>
-
-          <label>
-            <span> 우선순위 </span>
-
-            <select v-model="priority">
-              <option value="보통">보통</option>
-
-              <option value="급함">급함</option>
-            </select>
-          </label>
-        </div>
-
-        <label class="photo-input">
-          <span> 사진 첨부 (선택) </span>
-
-          <input type="file" accept="image/*" @change="handlePhotoChange" />
-        </label>
-
-        <div v-if="photoPreview" class="photo-preview">
-          <img :src="photoPreview" alt="첨부 사진 미리보기" />
-
-          <button type="button" @click="clearPhoto">사진 지우기</button>
-        </div>
-
-        <button
-          type="submit"
-          class="submit-button"
-          :disabled="!title.trim() || adding || uploading"
-        >
-          {{ uploading ? '사진 올리는 중...' : adding ? '요청하는 중...' : '오빠에게 요청하기' }}
-        </button>
-      </form>
     </section>
 
     <p v-if="message" class="message" :class="{ error: isError }">
@@ -835,15 +795,16 @@ onMounted(() => {
     <div v-if="loading" class="empty-state">집안일을 불러오는 중...</div>
 
     <template v-else>
-      <section class="tasks-section">
+      <!-- 해야 할 집안일 -->
+      <section class="tasks-section main-focus-section">
         <div class="section-title-row">
           <div>
-            <h3>해야 할 집안일</h3>
+            <h3>🧹 해야 할 집안일</h3>
 
-            <p>요청한 일과 진행 중인 일이에요.</p>
+            <p>지금 해야 하는 일을 먼저 확인해요.</p>
           </div>
 
-          <span> {{ activeRequests.length }}개 </span>
+          <span class="section-count"> {{ activeRequests.length }}개 </span>
         </div>
 
         <div v-if="activeRequests.length" class="task-list">
@@ -996,15 +957,16 @@ onMounted(() => {
           </article>
         </div>
 
-        <div v-else class="empty-state compact">지금 부탁한 집안일이 없어요.</div>
+        <div v-else class="empty-state compact">🎉 지금 해야 할 집안일이 없어요.</div>
       </section>
 
-      <section class="reward-section">
+      <!-- 보상 -->
+      <section class="reward-section main-focus-section">
         <div class="section-title-row">
           <div>
-            <h3>🎁 고마움 보상</h3>
+            <h3>🎁 하트 포인트 보상</h3>
 
-            <p>모은 고마움으로 받을 수 있는 보상을 직접 정해요.</p>
+            <p>집안일을 완료해서 모은 하트로 보상을 받을 수 있어요.</p>
           </div>
         </div>
 
@@ -1049,35 +1011,44 @@ onMounted(() => {
 
         <div v-else class="empty-state compact">아직 등록한 보상이 없어요.</div>
 
-        <form class="reward-form" @submit.prevent="addReward">
-          <input v-model="rewardEmoji" type="text" maxlength="4" placeholder="🎁" />
+        <div class="reward-editor">
+          <span class="editor-label"> 보상 편집 </span>
 
-          <input v-model="rewardTitle" type="text" maxlength="60" placeholder="예: 커피 사주기" />
+          <form class="reward-form" @submit.prevent="addReward">
+            <input v-model="rewardEmoji" type="text" maxlength="4" placeholder="🎁" />
 
-          <label>
-            <span> 필요한 고마움 </span>
+            <input v-model="rewardTitle" type="text" maxlength="60" placeholder="예: 커피 사주기" />
 
-            <input v-model.number="rewardCost" type="number" min="1" max="999" />
-          </label>
+            <label>
+              <span> 필요한 하트 </span>
 
-          <button
-            type="submit"
-            :disabled="
-              !rewardTitle.trim() || !Number.isInteger(Number(rewardCost)) || Number(rewardCost) < 1
-            "
-          >
-            보상 추가
-          </button>
-        </form>
+              <input v-model.number="rewardCost" type="number" min="1" max="999" />
+            </label>
+
+            <button
+              type="submit"
+              :disabled="
+                !rewardTitle.trim() ||
+                !Number.isInteger(Number(rewardCost)) ||
+                Number(rewardCost) < 1
+              "
+            >
+              보상 추가
+            </button>
+          </form>
+        </div>
       </section>
 
+      <!-- 완료한 집안일 -->
       <section class="completed-section">
         <div class="section-title-row">
           <div>
-            <h3>완료한 집안일</h3>
+            <h3>✅ 완료한 집안일</h3>
 
-            <p>오빠가 완료한 요청들이에요.</p>
+            <p>지금까지 완료한 요청이에요.</p>
           </div>
+
+          <span class="section-count"> {{ completedRequests.length }}개 </span>
         </div>
 
         <div v-if="completedRequests.length" class="completed-list">
@@ -1092,7 +1063,10 @@ onMounted(() => {
             </div>
 
             <div class="completed-actions">
-              <span class="thanks-earned"> +{{ item.thanks_points ?? 1 }} 💗 </span>
+              <span class="thanks-earned">
+                +{{ item.thanks_points ?? 1 }}
+                💗
+              </span>
 
               <button type="button" @click="changeStatus(item, '요청함')">되돌리기</button>
 
@@ -1102,6 +1076,63 @@ onMounted(() => {
             </div>
           </article>
         </div>
+
+        <div v-else class="empty-state compact">아직 완료한 집안일이 없어요.</div>
+      </section>
+
+      <!-- 새 집안일 요청 -->
+      <section class="request-section request-editor-section">
+        <div class="section-title-row">
+          <div>
+            <h3>✏️ 새 집안일 요청</h3>
+
+            <p>새로운 부탁은 여기에서 추가해요.</p>
+          </div>
+        </div>
+
+        <form class="request-form" @submit.prevent="addRequest">
+          <input v-model="title" type="text" maxlength="80" placeholder="예: 분리수거 해줘" />
+
+          <textarea v-model="memo" rows="3" maxlength="250" placeholder="메모 (선택)" />
+
+          <div class="form-row">
+            <label>
+              <span> 언제까지? (선택) </span>
+
+              <input v-model="dueDate" type="date" />
+            </label>
+
+            <label>
+              <span> 우선순위 </span>
+
+              <select v-model="priority">
+                <option value="보통">보통</option>
+
+                <option value="급함">급함</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="photo-input">
+            <span> 사진 첨부 (선택) </span>
+
+            <input type="file" accept="image/*" @change="handlePhotoChange" />
+          </label>
+
+          <div v-if="photoPreview" class="photo-preview">
+            <img :src="photoPreview" alt="첨부 사진 미리보기" />
+
+            <button type="button" @click="clearPhoto">사진 지우기</button>
+          </div>
+
+          <button
+            type="submit"
+            class="submit-button"
+            :disabled="!title.trim() || adding || uploading"
+          >
+            {{ uploading ? '사진 올리는 중...' : adding ? '요청하는 중...' : '오빠에게 요청하기' }}
+          </button>
+        </form>
       </section>
     </template>
   </section>
@@ -1169,6 +1200,8 @@ onMounted(() => {
   font-weight: 800;
 }
 
+/* 하트 포인트 */
+
 .game-panel {
   margin-bottom: 12px;
   padding: 18px;
@@ -1221,6 +1254,8 @@ onMounted(() => {
   font-size: 10px;
 }
 
+/* 요약 */
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1253,12 +1288,41 @@ onMounted(() => {
   background: #f6fbf9;
 }
 
+/* 주요 섹션 */
+
 .request-section,
 .tasks-section,
 .reward-section,
 .completed-section {
   margin-top: 22px;
 }
+
+.main-focus-section {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgb(255 255 255 / 45%);
+}
+
+.tasks-section.main-focus-section {
+  margin-top: 18px;
+}
+
+.reward-section.main-focus-section {
+  margin-top: 18px;
+}
+
+.section-count {
+  flex: none;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--purple-light);
+  color: var(--purple);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* 입력폼 */
 
 .request-form,
 .edit-form {
@@ -1376,6 +1440,8 @@ onMounted(() => {
 .message.error {
   color: var(--red);
 }
+
+/* 해야 할 집안일 */
 
 .task-list {
   display: grid;
@@ -1507,8 +1573,11 @@ onMounted(() => {
 
 .status-actions .complete-button {
   border-color: #e7bfd3;
+  background: #fff6fa;
   color: #ad6489;
 }
+
+/* 수정 */
 
 .edit-form {
   margin-top: 0;
@@ -1560,6 +1629,8 @@ onMounted(() => {
   opacity: 0.45;
 }
 
+/* 보상 */
+
 .reward-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1574,13 +1645,11 @@ onMounted(() => {
   border-radius: 17px;
   background: white;
   text-align: center;
-  opacity: 0.65;
 }
 
 .reward-card.available {
   border-color: #e7bfd3;
   background: #fffafd;
-  opacity: 1;
 }
 
 .reward-delete {
@@ -1625,6 +1694,20 @@ onMounted(() => {
   color: var(--muted);
 }
 
+.reward-editor {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+.editor-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .reward-form {
   display: grid;
   grid-template-columns:
@@ -1633,7 +1716,6 @@ onMounted(() => {
     minmax(130px, 1fr)
     auto;
   gap: 8px;
-  margin-top: 12px;
   padding: 12px;
   border: 1px dashed var(--line);
   border-radius: 15px;
@@ -1652,6 +1734,8 @@ onMounted(() => {
 .reward-form button:disabled {
   opacity: 0.45;
 }
+
+/* 완료 */
 
 .completed-list {
   display: grid;
@@ -1705,6 +1789,24 @@ onMounted(() => {
 .completed-actions .delete-completed {
   color: #b76c76;
 }
+
+/* 새 요청 영역은 맨 아래 + 덜 강조 */
+
+.request-editor-section {
+  margin-top: 34px;
+  padding-top: 22px;
+  border-top: 1px dashed var(--line);
+}
+
+.request-editor-section .section-title-row h3 {
+  font-size: 16px;
+}
+
+.request-editor-section .section-title-row p {
+  font-size: 11px;
+}
+
+/* 빈 화면 */
 
 .empty-state {
   margin-top: 12px;
@@ -1771,6 +1873,10 @@ onMounted(() => {
 
   .completed-actions {
     width: 100%;
+  }
+
+  .main-focus-section {
+    padding: 14px;
   }
 }
 </style>
