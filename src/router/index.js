@@ -25,6 +25,8 @@ import DatePlacesView from '@/views/date/DatePlacesView.vue'
 import DateScheduleView from '@/views/date/DateScheduleView.vue'
 import DateMemoriesView from '@/views/date/DateMemoriesView.vue'
 
+import HouseworkRequestView from '@/views/housework/HouseworkRequestView.vue'
+
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
 
@@ -144,6 +146,12 @@ const router = createRouter({
           component: DateMemoriesView,
         },
       ],
+    },
+
+    {
+      path: '/housework',
+      name: 'housework',
+      component: HouseworkRequestView,
     },
 
     {

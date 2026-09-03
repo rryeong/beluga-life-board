@@ -23,6 +23,8 @@ import belugaPair from '@/assets/beluga-pair.png'
         <RouterLink to="/tennis"> 테니스 </RouterLink>
 
         <RouterLink to="/date"> 데이트 </RouterLink>
+
+        <RouterLink to="/housework"> 집안일 </RouterLink>
       </nav>
     </header>
 
@@ -76,9 +78,9 @@ h1 {
 
 .main-navigation {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 8px;
-  max-width: 800px;
+  max-width: 900px;
   margin: 0 auto;
 }
 
