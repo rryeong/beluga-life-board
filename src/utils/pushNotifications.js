@@ -110,7 +110,7 @@ export async function enablePushNotifications() {
   if (!subscription) {
     const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
-    const { decoded: applicationServerKey } = validateVapidPublicKey(publicKey)
+    const { normalized: applicationServerKey } = validateVapidPublicKey(publicKey)
 
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
